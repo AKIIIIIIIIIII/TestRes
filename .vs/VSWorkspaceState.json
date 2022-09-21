@@ -1,8 +1,10 @@
 {
   "ExpandedNodes": [
     "",
-    "\\configs"
+    "\\configs",
+    "\\datasets",
+    "\\datasets\\demo_edges2handbags"
   ],
-  "SelectedNode": "\\inputs",
+  "SelectedNode": "\\datasets\\demo_edges2handbags",
   "PreviewInSolutionExplorer": false
 }
