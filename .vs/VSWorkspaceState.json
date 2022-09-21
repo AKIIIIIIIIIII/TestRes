@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\configs"
   ],
-  "SelectedNode": "\\networks.py",
+  "SelectedNode": "\\inputs",
   "PreviewInSolutionExplorer": false
 }
