@@ -96,7 +96,7 @@ for item in os.listdir(opts.input):
                 s = style[j].unsqueeze(0)
                 outputs = decode(content, s)
                 outputs = (outputs + 1) / 2.
-                path = os.path.join(opts.output_folder, count+'_output{:03d}.jpg'.format(j))
+                path = os.path.join(opts.output_folder, str(count)+'_output{:03d}.jpg'.format(j))
                 vutils.save_image(outputs.data, path, padding=0, normalize=True)
         elif opts.trainer == 'UNIT':
             outputs = decode(content)
@@ -108,6 +108,6 @@ for item in os.listdir(opts.input):
 
         if not opts.output_only:
             # also save input images
-            vutils.save_image(image.data, os.path.join(opts.output_folder, count+'input.jpg'), padding=0, normalize=True)
+            vutils.save_image(image.data, os.path.join(opts.output_folder, str(count)+'input.jpg'), padding=0, normalize=True)
 
            #fix
