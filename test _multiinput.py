@@ -110,3 +110,4 @@ for item in os.listdir(opts.input):
         # also save input images
         vutils.save_image(image.data, os.path.join(opts.output_folder, count+'input.jpg'), padding=0, normalize=True)
 
+        #what happened
