@@ -116,3 +116,4 @@ with torch.no_grad():
                 vutils.save_image(image.data, os.path.join(opts.output_folder, str(styleCount)+'_'+str(count)+'input.jpg'), padding=0, normalize=True)
     
                #fix
+        styleCount += 1
