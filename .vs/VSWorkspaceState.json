@@ -1,6 +1,9 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\configs",
+    "\\datasets"
   ],
+  "SelectedNode": "\\test_multistyle.py",
   "PreviewInSolutionExplorer": false
 }
