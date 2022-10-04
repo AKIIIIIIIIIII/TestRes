@@ -80,7 +80,7 @@ with torch.no_grad():
         transform = transforms.Compose([transforms.Resize(new_size),
                                 transforms.ToTensor(),
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-        style_image = Variable(transform(Image.open(opts.style).convert('RGB')).unsqueeze(0).cuda()) if opts.style != '' else None
+        style_image = Variable(transform(Image.open(multstyle).convert('RGB')).unsqueeze(0).cuda()) if multstyle != '' else None
         vutils.save_image(style_image.data, os.path.join(opts.output_folder, str(styleCount)+'style.jpg'), padding=0, normalize=True)
         count=0
         for item in os.listdir(opts.input):
@@ -93,7 +93,7 @@ with torch.no_grad():
 
             if opts.trainer == 'MUNIT':
                 style_rand = Variable(torch.randn(opts.num_style, style_dim, 1, 1).cuda())
-                if opts.style != '':
+                if multstyle != '':
                     _, style = style_encode(style_image)
                 else:
                     style = style_rand
