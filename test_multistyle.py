@@ -22,7 +22,7 @@ parser.add_argument('--checkpoint', type=str, help="checkpoint of autoencoders")
 parser.add_argument('--style', type=str, default='', help="style image folder path")
 parser.add_argument('--a2b', type=int, default=1, help="1 for a2b and 0 for b2a")
 parser.add_argument('--seed', type=int, default=10, help="random seed")
-parser.add_argument('--num_style',type=int, default=10, help="number of styles to sample")
+parser.add_argument('--num_style',type=int, default=1, help="number of styles to sample")
 parser.add_argument('--synchronized', action='store_true', help="whether use synchronized style code or not")
 parser.add_argument('--output_only', action='store_true', help="whether use synchronized style code or not")
 parser.add_argument('--output_path', type=str, default='.', help="path for logs, checkpoints, and VGG model weight")
@@ -81,7 +81,7 @@ with torch.no_grad():
                                 transforms.ToTensor(),
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
         style_image = Variable(transform(Image.open(multstyle).convert('RGB')).unsqueeze(0).cuda()) if multstyle != '' else None
-        vutils.save_image(style_image.data, os.path.join(opts.output_folder, str(styleCount)+'style.jpg'), padding=0, normalize=True)
+        vutils.save_image(style_image.data, os.path.join(opts.output_folder, str(styleCount)+'_style.jpg'), padding=0, normalize=True)
         count=0
         for item in os.listdir(opts.input):
             multInput=os.path.join(opts.input,item)
@@ -101,7 +101,7 @@ with torch.no_grad():
                     s = style[j].unsqueeze(0)
                     outputs = decode(content, s)
                     outputs = (outputs + 1) / 2.
-                    path = os.path.join(opts.output_folder, str(count)+'_output{:03d}.jpg'.format(j))
+                    path = os.path.join(opts.output_folder,str(styleCount)+'_'+ str(count)+'_output{:03d}.jpg'.format(j))
                     vutils.save_image(outputs.data, path, padding=0, normalize=True)
             elif opts.trainer == 'UNIT':
                 outputs = decode(content)
@@ -113,6 +113,6 @@ with torch.no_grad():
 
             if not opts.output_only:
                 # also save input images
-                vutils.save_image(image.data, os.path.join(opts.output_folder, str(styleCount)+str(count)+'input.jpg'), padding=0, normalize=True)
+                vutils.save_image(image.data, os.path.join(opts.output_folder, str(styleCount)+'_'+str(count)+'input.jpg'), padding=0, normalize=True)
     
                #fix
