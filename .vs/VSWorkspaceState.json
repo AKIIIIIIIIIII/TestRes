@@ -1,9 +1,8 @@
 {
   "ExpandedNodes": [
     "",
-    "\\configs",
-    "\\datasets"
+    "\\configs"
   ],
-  "SelectedNode": "\\test_multistyle.py",
+  "SelectedNode": "\\train.py",
   "PreviewInSolutionExplorer": false
 }
