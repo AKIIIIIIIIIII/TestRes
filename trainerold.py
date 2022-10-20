@@ -5,7 +5,6 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 from networks import AdaINGen, MsImageDis, VAEGen
 from utils import weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
-from structure_extractor import SuperPixel
 import torch
 import torch.nn as nn
 import os
@@ -119,13 +118,9 @@ class MUNIT_Trainer(nn.Module):
     def compute_vgg_loss(self, vgg, img, target):
         img_vgg = vgg_preprocess(img)
         target_vgg = vgg_preprocess(target)
-        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-        extract_structure = SuperPixel(DEVICE, mode='sscolor')
-        img_vgg = extract_structure.process(img_vgg)
         img_fea = vgg(img_vgg)
         target_fea = vgg(target_vgg)
         return torch.mean((self.instancenorm(img_fea) - self.instancenorm(target_fea)) ** 2)
-
 
     def sample(self, x_a, x_b):
         self.eval()

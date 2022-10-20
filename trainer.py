@@ -5,6 +5,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 from networks import AdaINGen, MsImageDis, VAEGen
 from utils import weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
+from structure_extractor import SuperPixel
 import torch
 import torch.nn as nn
 import os
@@ -97,8 +98,8 @@ class MUNIT_Trainer(nn.Module):
         self.loss_gen_adv_a = self.dis_a.calc_gen_loss(x_ba)
         self.loss_gen_adv_b = self.dis_b.calc_gen_loss(x_ab)
         # domain-invariant perceptual loss
-        self.loss_gen_vgg_a = self.compute_vgg_loss(self.vgg, x_ba, x_b) if hyperparameters['vgg_w'] > 0 else 0
-        self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_ab, x_a) if hyperparameters['vgg_w'] > 0 else 0
+        self.loss_gen_vgg_a = self.compute_vgg_loss(self.vgg, x_ba.detach(), x_b) if hyperparameters['vgg_w'] > 0 else 0
+        self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0
         # total loss
         self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + \
                               hyperparameters['gan_w'] * self.loss_gen_adv_b + \
@@ -118,9 +119,13 @@ class MUNIT_Trainer(nn.Module):
     def compute_vgg_loss(self, vgg, img, target):
         img_vgg = vgg_preprocess(img)
         target_vgg = vgg_preprocess(target)
-        img_fea = vgg(img_vgg)
+        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+        extract_structure = SuperPixel(DEVICE, mode='sscolor')
+        img_vgg_struct = extract_structure.process(img_vgg)
+        img_fea = vgg(img_vgg_struct)
         target_fea = vgg(target_vgg)
         return torch.mean((self.instancenorm(img_fea) - self.instancenorm(target_fea)) ** 2)
+
 
     def sample(self, x_a, x_b):
         self.eval()
