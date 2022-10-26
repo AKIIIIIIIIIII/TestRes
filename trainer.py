@@ -5,10 +5,16 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 from networks import AdaINGen, MsImageDis, VAEGen
 from utils import weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
+from torchvision.utils import save_image
 from structure_extractor import SuperPixel
 import torch
 import torch.nn as nn
 import os
+
+def save_training_images(image, dest_folder, suffix_filename:str):
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+    save_image(image, os.path.join(dest_folder, f"{suffix_filename}.png"))
 
 class MUNIT_Trainer(nn.Module):
     def __init__(self, hyperparameters):
@@ -117,13 +123,14 @@ class MUNIT_Trainer(nn.Module):
         self.gen_opt.step()
 
     def compute_vgg_loss(self, vgg, img, target):
-        img_vgg = vgg_preprocess(img)
-        target_vgg = vgg_preprocess(target)
+      #  img_vgg = vgg_preprocess(img)
+    #    target_vgg = vgg_preprocess(target)
         DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-        extract_structure = SuperPixel(DEVICE, mode='sscolor')
-        img_vgg_struct = extract_structure.process(img_vgg)
+        extract_structure = SuperPixel(DEVICE, mode='simple')
+        img_vgg_struct = extract_structure.process(img)
+        save_training_images(img_vgg_struct*0.5+0.5, "./testtest", "struct")
         img_fea = vgg(img_vgg_struct)
-        target_fea = vgg(target_vgg)
+        target_fea = vgg(target)
         return torch.mean((self.instancenorm(img_fea) - self.instancenorm(target_fea)) ** 2)
 
 
