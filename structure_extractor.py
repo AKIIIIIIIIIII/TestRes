@@ -62,11 +62,16 @@ def slic(image, seg_num=200, kind='mix'):
     image = label2rgb(seg_label, image, kind=kind, bg_label=-1)
     return image
 
+def Felzenszwalb(image):
+    img_seg = segmentation.felzenszwalb(image, scale=10, sigma=1, min_size=100)
+    img_seg = label2rgb(img_seg, image, kind='mix')
+    return img_seg
+
 # Apply slic to batches
 def simple_superpixel(batch_image, seg_num=200, kind='mix'):
     num_job = np.shape(batch_image)[0]
-    batch_out = Parallel(n_jobs=num_job)(delayed(slic)\
-                         (image, seg_num, kind) for image in batch_image)
+    batch_out = Parallel(n_jobs=num_job)(delayed(Felzenszwalb)\
+                         (image) for image in batch_image)
     return np.array(batch_out)
 
 # Felzenszwalb algorithm + Selective Search

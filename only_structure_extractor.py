@@ -67,12 +67,19 @@ def slic(image, seg_num=200, kind='mix'):
     image = label2rgb(seg_label, image, kind=kind, bg_label=-1)
     return image
 
+
+def Felzenszwalb(image):
+    img_seg = segmentation.felzenszwalb(image, scale=10, sigma=1, min_size=100)
+    img_seg = label2rgb(img_seg, image, kind='mix')
+    return img_seg
+
 # Apply slic to batches
 def simple_superpixel(batch_image, seg_num=200, kind='mix'):
     num_job = np.shape(batch_image)[0]
-    batch_out = Parallel(n_jobs=num_job)(delayed(slic)\
-                         (image, seg_num, kind) for image in batch_image)
+    batch_out = Parallel(n_jobs=num_job)(delayed(Felzenszwalb)\
+                         (image) for image in batch_image)
     return np.array(batch_out)
+
 
 # Felzenszwalb algorithm + Selective Search
 def color_ss_map(image, seg_num=200, power=1.2, k=10, sim_strategy='CTSF'):
@@ -351,7 +358,7 @@ def save_training_images(image, dest_folder, suffix_filename:str):
     save_image(image, os.path.join(dest_folder, f"{suffix_filename}.png"))
 
 if __name__ == "__main__":
-    image = "/content/CartoonTrans/data/val/photo/0.jpg"
+    image = "/content/TestRes/datasets/demo_edges2handbags/testA/0.jpg"
     super_pixel = SuperPixel(mode='sscolor')
     transform = transforms.Compose([transforms.Resize(256),
                                     transforms.ToTensor(),
@@ -359,8 +366,8 @@ if __name__ == "__main__":
     image = Variable(transform(Image.open(image).convert('RGB')).unsqueeze(0).cuda())
   #  input = torch.randn(5,3,256,256)
     result = super_pixel.process(image)
-    save_training_images(result, "./testtest", "superpixss")
+    save_training_images(result*0.5+0.5, "./testtest", "superpixss")
     super_pixel = SuperPixel(mode='simple')
     result = super_pixel.process(image)
-    save_training_images(result, "./testtest", "superpixsimple")
+    save_training_images(result*0.5+0.5, "./testtest", "fffrpixsimple")
     print(result.shape)
