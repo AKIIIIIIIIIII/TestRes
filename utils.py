@@ -10,6 +10,8 @@ from torch.autograd import Variable
 from torch.optim import lr_scheduler
 from torchvision import transforms
 from data import ImageFilelist, ImageFolder
+from structure_extractor import SuperPixel
+from torchvision.utils import save_image
 import torch
 import torch.nn as nn
 import os
@@ -251,6 +253,24 @@ def vgg_preprocess(batch):
     tensortype = type(batch.data)
     (r, g, b) = torch.chunk(batch, 3, dim = 1)
     batch = torch.cat((b, g, r), dim = 1) # convert RGB to BGR
+    batch = (batch + 1) * 255 * 0.5 # [-1, 1] -> [0, 255]
+    mean = tensortype(batch.data.size()).cuda()
+    mean[:, 0, :, :] = 103.939
+    mean[:, 1, :, :] = 116.779
+    mean[:, 2, :, :] = 123.680
+    batch = batch.sub(Variable(mean)) # subtract mean
+    return batch
+
+def save_training_images(image, dest_folder, suffix_filename:str):
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+    save_image(image, os.path.join(dest_folder, f"{suffix_filename}.png"))
+
+def vgg_preprocess_color(batch):
+    tensortype = type(batch.data)
+    extract_structure = SuperPixel("cuda", mode='simple')
+    batch = extract_structure.process(batch)#rgb
+    save_training_images(batch*0.5+0.5, "./testtest", "struct")
     batch = (batch + 1) * 255 * 0.5 # [-1, 1] -> [0, 255]
     mean = tensortype(batch.data.size()).cuda()
     mean[:, 0, :, :] = 103.939
