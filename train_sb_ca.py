@@ -55,26 +55,27 @@ output_directory = os.path.join(opts.output_path + "/outputs", model_name)
 checkpoint_directory, image_directory = prepare_sub_folder(output_directory)
 shutil.copy(opts.config, os.path.join(output_directory, 'config.yaml')) # copy config file to output folder
 
-# Start training
-iterations = trainer.resume(checkpoint_directory, hyperparameters=config) if opts.resume else 0iterations=0
-for epoch in range(10):
-    for it, (images_a, images_b) in enumerate(zip(train_loader_a, train_loader_b)):
-        image_a =images_a.cuda().detach()
-        with Timer("Elapsed time in update: %f"):
+## Start training
+iterations = trainer.resume(checkpoint_directory, hyperparameters=config) if opts.resume else 0
+#iterations=0
+#for epoch in range(10):
+#    for it, (images_a, images_b) in enumerate(zip(train_loader_a, train_loader_b)):
+#        image_a =images_a.cuda().detach()
+#        with Timer("Elapsed time in update: %f"):
 
-            trainer.gen_update_ini(images_a, images_b, config)
-            torch.cuda.synchronize()
+#            trainer.gen_update_ini(images_a, images_b, config)
+#            torch.cuda.synchronize()
 
-        # Dump training stats in log file
-        if (iterations + 1) % config['log_iter'] == 0:
-                print("Iteration: %08d/%08d" % (iterations + 1, max_iter))
-                write_loss(iterations, trainer, train_writer)
-print("down!")
-with torch.no_grad():
-    test_image_outputs = trainer.sample(test_display_images_a, test_display_images_b)
-    train_image_outputs = trainer.sample(train_display_images_a, train_display_images_b)
-    write_2images(test_image_outputs, display_size, image_directory, 'test_%08d' % (iterations + 1))
-    write_2images(train_image_outputs, display_size, image_directory, 'train_%08d' % (iterations + 1))
+#        # Dump training stats in log file
+#        if (iterations + 1) % config['log_iter'] == 0:
+#                print("Iteration: %08d/%08d" % (iterations + 1, max_iter))
+#                write_loss(iterations, trainer, train_writer)
+#print("down!")
+#with torch.no_grad():
+#    test_image_outputs = trainer.sample(test_display_images_a, test_display_images_b)
+#    train_image_outputs = trainer.sample(train_display_images_a, train_display_images_b)
+#    write_2images(test_image_outputs, display_size, image_directory, 'test_%08d' % (iterations + 1))
+#    write_2images(train_image_outputs, display_size, image_directory, 'train_%08d' % (iterations + 1))
 
 while True:
     for it, (images_a, images_b) in enumerate(zip(train_loader_a, train_loader_b)):

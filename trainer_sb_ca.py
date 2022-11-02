@@ -84,8 +84,9 @@ class MUNIT_Trainer(nn.Module):
         # domain-invariant perceptual loss
         self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0
         # total loss
-        self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a 
-                              hyperparameters['vgg_w'] * self.loss_gen_vgg_b
+        self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + \
+                              hyperparameters['vgg_w'] * self.loss_gen_vgg_b + \                    
+                              hyperparameters['recon_x_w'] * self.loss_gen_recon_x_a 
         self.loss_gen_total.backward()
         self.gen_opt.step()
 
