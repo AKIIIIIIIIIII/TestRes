@@ -79,14 +79,14 @@ class MUNIT_Trainer(nn.Module):
         # decode (within domain)
         x_ab = self.gen_a.decode(c_a, s_b)
         x_a_recon = self.gen_a.decode(c_a, s_a_prime)
+        # reconstruction loss
+        self.loss_gen_recon_x_a = self.recon_criterion(x_a_recon, x_a)
         # GAN loss
         self.loss_gen_adv_a = self.dis_a.calc_gen_loss(x_ab)
         # domain-invariant perceptual loss
         self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0
         # total loss
-        self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + \
-                              hyperparameters['vgg_w'] * self.loss_gen_vgg_b + \                    
-                              hyperparameters['recon_x_w'] * self.loss_gen_recon_x_a 
+        self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + hyperparameters['vgg_w'] * self.loss_gen_vgg_b + hyperparameters['recon_x_w'] * self.loss_gen_recon_x_a 
         self.loss_gen_total.backward()
         self.gen_opt.step()
 
@@ -102,14 +102,16 @@ class MUNIT_Trainer(nn.Module):
         self.eval()
         s_b1 = Variable(self.s_b)
         s_b2 = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
-        x_ab1, x_ab2 = [], []
+        x_ab1, x_ab2, x_a_recon = [], [], []
         for i in range(x_a.size(0)):
             c_a, s_a_fake = self.gen_a.encode(x_a[i].unsqueeze(0))
+            x_a_recon.append(self.gen_a.decode(c_a, s_a_fake))
             x_ab1.append(self.gen_a.decode(c_a, s_b1[i].unsqueeze(0)))
             x_ab2.append(self.gen_a.decode(c_a, s_b2[i].unsqueeze(0)))
         x_ab1, x_ab2 = torch.cat(x_ab1), torch.cat(x_ab2)
+        x_a_recon = torch.cat(x_a_recon)
         self.train()
-        return x_ab1, x_ab2
+        return x_a, x_a_recon, x_ab1, x_ab2
 
     def dis_update(self, x_a, x_b, hyperparameters):
         self.dis_opt.zero_grad()
