@@ -11,7 +11,7 @@ def save_training_images(image, dest_folder, suffix_filename:str):
     save_image(image, os.path.join(dest_folder, f"{suffix_filename}.png"))
 
 class ColorShift():
-    def __init__(self, device: torch.device='cpu', mode='uniform', image_format='rgb'):
+    def __init__(self, device: torch.device='cuda', mode='uniform', image_format='rgb'):
         self.dist: torch.distributions = None
         self.dist_param1: torch.Tensor = None
         self.dist_param2: torch.Tensor = None
