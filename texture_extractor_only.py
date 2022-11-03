@@ -3,6 +3,13 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torchvision.utils import save_image
 from torchvision import transforms
+from PIL import Image
+
+def save_training_images(image, dest_folder, suffix_filename:str):
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+    save_image(image, os.path.join(dest_folder, f"{suffix_filename}.png"))
+
 class ColorShift():
     def __init__(self, device: torch.device='cpu', mode='uniform', image_format='rgb'):
         self.dist: torch.distributions = None
@@ -50,5 +57,5 @@ if __name__ == "__main__":
    # input1 = torch.randn(5,3,256,256)
   #  input2 = torch.randn(5,3,256,256)
     result1, result2 = color_shift.process(image,image)
-    save_training_images(torch.cat((result1*0.5+0.5, reselt2*0.5+0.5),axis=2), "./testtest", "superpixss")
-  #  print(result1.shape, result2.shape) #torch.Size([5, 3, 256, 256]) torch.Size([5, 3, 256, 256])
+    save_training_images(torch.cat((result1*0.5+0.5, result2*0.5+0.5),axis=2), "./testtest", "mono")
+    print(result1.shape, result2.shape) #torch.Size([5, 3, 256, 256]) torch.Size([5, 3, 256, 256])
