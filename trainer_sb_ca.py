@@ -86,20 +86,20 @@ class MUNIT_Trainer(nn.Module):
         color_shift = ColorShift()
         x_ab_mono, x_b_mono = color_shift.process(x_ab,x_b)
         # GAN loss
-        self.loss_gen_adv_a = self.dis_a.calc_gen_loss(x_ab_mono)
+        self.loss_gen_adv_a = self.dis_a.calc_gen_loss(x_ab)
         #monokuro loss
-  #      self.loss_gen_mono = self.dis_a.calc_gen_loss(x_ab_mono)
+        self.loss_gen_mono = self.recon_criterion(x_ab_mono)
         # domain-invariant perceptual loss
         self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0
         # total loss
-        self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + hyperparameters['vgg_w'] * self.loss_gen_vgg_b + hyperparameters['recon_x_w'] * self.loss_gen_recon_x_a# + hyperparameters['texture_w'] * self.loss_gen_mono
+        self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + hyperparameters['vgg_w'] * self.loss_gen_vgg_b + hyperparameters['recon_x_w'] * self.loss_gen_recon_x_a + hyperparameters['texture_w'] * self.loss_gen_mono
         self.loss_gen_total.backward()
         self.gen_opt.step()
 
     def compute_vgg_loss(self, vgg, img, target):
-        img_vgg = vgg_preprocess_color(img)
+        img_vgg = vgg_preprocess_color(target)
         img_fea = vgg(img_vgg)
-        target_vgg = vgg_preprocess(target)
+        target_vgg = vgg_preprocess(img)
         target_fea = vgg(target_vgg)
         return torch.mean((self.instancenorm(img_fea) - self.instancenorm(target_fea)) ** 2)
 
@@ -130,9 +130,9 @@ class MUNIT_Trainer(nn.Module):
         color_shift = ColorShift()
         x_ab_mono, x_b_mono = color_shift.process(x_ab.detach(),x_b)
         # D loss
-        self.loss_dis_a = self.dis_a.calc_dis_loss(x_ab_mono, x_b_mono)
- #       self.loss_dis_mono = self.dis_a.calc_dis_loss(x_ab_mono, x_b_mono)
-        self.loss_dis_total = hyperparameters['gan_w'] * self.loss_dis_a #+ hyperparameters['texture_w'] * self.loss_dis_mono
+        self.loss_dis_a = self.dis_a.calc_dis_loss(x_ab, x_b)
+        self.loss_dis_mono =self.recon_criterion(x_ab_mono, x_b_mono)
+        self.loss_dis_total = hyperparameters['gan_w'] * self.loss_dis_a + hyperparameters['texture_w'] * self.loss_dis_mono
         self.loss_dis_total.backward()
         self.dis_opt.step()
 

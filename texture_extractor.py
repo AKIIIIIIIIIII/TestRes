@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class ColorShift():
-    def __init__(self, device: torch.device='cpu', mode='uniform', image_format='rgb'):
+    def __init__(self, device: torch.device='cuda', mode='uniform', image_format='rgb'):
         self.dist: torch.distributions = None
         self.dist_param1: torch.Tensor = None
         self.dist_param2: torch.Tensor = None

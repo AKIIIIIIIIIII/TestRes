@@ -25,7 +25,7 @@ recon_x_w: 180                 # weight of image reconstruction loss
 recon_s_w: 1.5                  # weight of style reconstruction loss
 recon_c_w: 1.2                  # weight of content reconstruction loss
 recon_x_cyc_w: 10              # weight of explicit style augmented cycle consistency loss
-texture_w: 1
+texture_w: 10
 vgg_w: 200                      # weight of domain-invariant perceptual loss(struct version)
 
 # model options
