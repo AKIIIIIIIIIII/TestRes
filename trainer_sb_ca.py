@@ -2,7 +2,7 @@
 Copyright (C) 2017 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
-from networks import AdaINGen, MsImageDis, VAEGen
+from networks import AdaINGen, Discriminator, MsImageDis, VAEGen
 from utils import vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
 from losses import VariationLoss
@@ -22,10 +22,11 @@ class MUNIT_Trainer(nn.Module):
         # Initiate the networks
         self.gen_a = AdaINGen(hyperparameters['input_dim_a'], hyperparameters['gen'])  # auto-encoder for domain a
         self.gen_b = AdaINGen(hyperparameters['input_dim_b'], hyperparameters['gen'])  # auto-encoder for domain b
-        self.dis_a = MsImageDis(hyperparameters['input_dim_a'], hyperparameters['dis'])  # discriminator for domain a
-        self.dis_b = MsImageDis(hyperparameters['input_dim_b'], hyperparameters['dis'])  # discriminator for domain b
+        self.dis_a = Discriminator()  # discriminator for domain a
+        self.dis_b = Discriminator()  # discriminator for domain b
         self.instancenorm = nn.InstanceNorm2d(512, affine=False)
         self.style_dim = hyperparameters['gen']['style_dim']
+        self.color_shift = ColorShift()
 
         # fix the noise used in sampling
         display_size = int(hyperparameters['display_size'])
@@ -82,10 +83,12 @@ class MUNIT_Trainer(nn.Module):
     def gen_update(self, x_a, x_b, hyperparameters):
         self.gen_opt.zero_grad()
         s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
-        s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
+        s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())       
+
         # encode
-        c_a, s_a_prime = self.gen_a.encode(x_a)
-        c_b, s_b_prime = self.gen_b.encode(x_b)
+        x_a_mono, x_b_mono = self.color_shift(x_a,x_b)
+        c_a, s_a_prime = self.gen_a.encode(x_a,x_a_mono)
+        c_b, s_b_prime = self.gen_b.encode(x_b, x_b_mono)
         # decode (within domain)
         x_a_recon = self.gen_a.decode(c_a, s_a_prime)
         x_b_recon = self.gen_b.decode(c_b, s_b_prime)
@@ -93,11 +96,10 @@ class MUNIT_Trainer(nn.Module):
         x_ab = self.gen_b.decode(c_a, s_b)
         x_ba = self.gen_a.decode(c_b, s_a)
         #monokuro
-        #color_shift = ColorShift()
-        #x_ab_mono, x_b_mono = color_shift.process(x_ab,x_b)
+        x_ab_mono, x_ba_mono = color_shift.process(x_ab,x_ba)
         # encode again
-        c_b_recon, s_a_recon = self.gen_a.encode(x_ba)
-        c_a_recon, s_b_recon = self.gen_b.encode(x_ab)
+        c_b_recon, s_a_recon = self.gen_a.encode(x_ba, x_ba_mono)
+        c_a_recon, s_b_recon = self.gen_b.encode(x_ab, x_ab_mono)
         # reconstruction loss
         self.loss_gen_recon_x_a = self.recon_criterion(x_a_recon, x_a)
         self.loss_gen_recon_x_b = self.recon_criterion(x_b_recon, x_b)
@@ -135,12 +137,12 @@ class MUNIT_Trainer(nn.Module):
                               hyperparameters['recon_c_w'] * self.loss_gen_recon_c_b + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_a + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_b + \
-                             # hyperparameters['texture_w'] * self.loss_gen_mono_a + \
-                             # hyperparameters['texture_w'] * self.loss_gen_mono_b + \
                               hyperparameters['tv_w'] * self.loss_tv_a + \
                               hyperparameters['tv_w'] * self.loss_tv_b + \
-                              hyperparameters['vgg_w'] * self.loss_gen_vgg_b + \                     
-                              hyperparameters['vgg_w'] * self.loss_gen_vgg_a
+                              hyperparameters['vgg_w'] * self.loss_gen_vgg_a + \
+                              hyperparameters['vgg_w'] * self.loss_gen_vgg_b
+                             # hyperparameters['texture_w'] * self.loss_gen_mono_a + \
+                             # hyperparameters['texture_w'] * self.loss_gen_mono_b + \
         self.loss_gen_total.backward()
         self.gen_opt.step()
 

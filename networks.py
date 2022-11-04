@@ -174,18 +174,18 @@ class AdaINGen(nn.Module):
         images_recon = self.decode(content, style_fake)
         return images_recon
 
-    def encode(self, images):
+    def encode(self, images, image_mono):
         # encode an image to its content and style codes
-        color_shift = ColorShift()
-        images_mono = color_shift.process(images)
-        style_fake = self.enc_style(images_mono)
+        style_fake=self.enc_style(images_mono)
         content = self.enc_content(images)
         return content, style_fake
 
-    def decode(self, content, style):
+    def decode(self, content, style, style_mono):
         # decode content and style codes to an image
         adain_params = self.mlp(style)
+     #   adain_params_mono = self.mlp(style_mono)
         self.assign_adain_params(adain_params, self.dec)
+      #  self.assign_adain_params(adain_params_mono, self.dec)
         images = self.dec(content)
         return images
 
