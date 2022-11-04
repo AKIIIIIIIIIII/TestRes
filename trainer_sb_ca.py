@@ -93,8 +93,8 @@ class MUNIT_Trainer(nn.Module):
         x_ab = self.gen_b.decode(c_a, s_b)
         x_ba = self.gen_a.decode(c_b, s_a)
         #monokuro
-        color_shift = ColorShift()
-        x_ab_mono, x_b_mono = color_shift.process(x_ab,x_b)
+        #color_shift = ColorShift()
+        #x_ab_mono, x_b_mono = color_shift.process(x_ab,x_b)
         # encode again
         c_b_recon, s_a_recon = self.gen_a.encode(x_ba)
         c_a_recon, s_b_recon = self.gen_b.encode(x_ab)
@@ -116,8 +116,8 @@ class MUNIT_Trainer(nn.Module):
         self.loss_gen_adv_a = self.dis_a.calc_gen_loss(x_ba)
         self.loss_gen_adv_b = self.dis_b.calc_gen_loss(x_ab)        
         #monokuro loss
-        self.loss_gen_mono_a = torch.mean((x_ab_mono - x_b) ** 2)
-        self.loss_gen_mono_b = torch.mean((x_ba_mono - x_a) ** 2)
+        #self.loss_gen_mono_a = torch.mean((x_ab_mono - x_b) ** 2)
+        #self.loss_gen_mono_b = torch.mean((x_ba_mono - x_a) ** 2)
         # domain-invariant perceptual loss
         self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0     
         self.loss_gen_vgg_a = self.compute_vgg_loss(self.vgg, x_ba.detach(), x_b) if hyperparameters['vgg_w'] > 0 else 0
@@ -135,12 +135,12 @@ class MUNIT_Trainer(nn.Module):
                               hyperparameters['recon_c_w'] * self.loss_gen_recon_c_b + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_a + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_b + \
-                              hyperparameters['texture_w'] * self.loss_gen_mono_a + \
-                              hyperparameters['texture_w'] * self.loss_gen_mono_b + \
+                             # hyperparameters['texture_w'] * self.loss_gen_mono_a + \
+                             # hyperparameters['texture_w'] * self.loss_gen_mono_b + \
                               hyperparameters['tv_w'] * self.loss_tv_a + \
                               hyperparameters['tv_w'] * self.loss_tv_b + \
-                              hyperparameters['vgg_w'] * self.loss_gen_vgg_b
-
+                              hyperparameters['vgg_w'] * self.loss_gen_vgg_b + \                     
+                              hyperparameters['vgg_w'] * self.loss_gen_vgg_a
         self.loss_gen_total.backward()
         self.gen_opt.step()
 
@@ -149,9 +149,9 @@ class MUNIT_Trainer(nn.Module):
         img_fea = vgg(img_vgg)
         target_vgg = vgg_preprocess(target)
         target_fea = vgg(target_vgg)
- #       return torch.mean((self.instancenorm(img_fea) - self.instancenorm(target_fea)) ** 2)
-        loss_abs = torch.abs(img_fea - target_fea)
-        return loss_abs[loss_abs != 0.0].mean()
+        return torch.mean((self.instancenorm(img_fea) - self.instancenorm(target_fea)) ** 2)
+   #     loss_abs = torch.abs(img_fea - target_fea)
+   #     return loss_abs[loss_abs != 0.0].mean()
 
 
     def sample(self, x_a, x_b):

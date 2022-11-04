@@ -2,9 +2,8 @@
 Copyright (C) 2018 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
-from torch import bilinear, mode, nn
+from torch import nn
 from torch.autograd import Variable
-from torch.nn.utils import spectral_norm
 import torch
 import torch.nn.functional as F
 try:
@@ -43,7 +42,6 @@ class MsImageDis(nn.Module):
         cnn_x += [nn.Conv2d(dim, 1, 1, 1, 0)]
         cnn_x = nn.Sequential(*cnn_x)
         return cnn_x
-
 
     def forward(self, x):
         outputs = []
@@ -84,64 +82,6 @@ class MsImageDis(nn.Module):
                 assert 0, "Unsupported GAN type: {}".format(self.gan_type)
         return loss
 
-class Discriminator(nn.Module):
-    def __init__(self, in_channels=3, out_channels=1, features=[32, 64, 128]):
-        super().__init__()
-        self.model = nn.Sequential(
-            #k3n32s2
-            Block(in_channels, features[0], kernel_size=3, stride=2, padding=1),
-            #k3n32s1
-            Block(features[0], features[0], kernel_size=3, stride=1, padding=1),
-
-            #k3n64s2
-            Block(features[0], features[1], kernel_size=3, stride=2, padding=1),
-            #k3n64s1
-            Block(features[1], features[1], kernel_size=3, stride=1, padding=1),
-
-            #k3n128s2
-            Block(features[1], features[2], kernel_size=3, stride=2, padding=1),
-            #k3n128s1
-            Block(features[2], features[2], kernel_size=3, stride=1, padding=1),
-
-            #k1n1s1
-            Block(features[2], out_channels, kernel_size=1, stride=1, padding=0, act=False)
-        )
-
-    def forward(self, x):
-        x = self.model(x)
-        return x
-
-    def calc_dis_loss(self, input_fake, input_real):
-        # calculate the loss to train D
-        outs0 = self.forward(input_fake)
-        outs1 = self.forward(input_real)
-        loss = 0
-
-        for it, (out0, out1) in enumerate(zip(outs0, outs1)):
-            if self.gan_type == 'lsgan':
-                loss += torch.mean((out0 - 0)**2) + torch.mean((out1 - 1)**2)
-            elif self.gan_type == 'nsgan':
-                all0 = Variable(torch.zeros_like(out0.data).cuda(), requires_grad=False)
-                all1 = Variable(torch.ones_like(out1.data).cuda(), requires_grad=False)
-                loss += torch.mean(F.binary_cross_entropy(F.sigmoid(out0), all0) +
-                                    F.binary_cross_entropy(F.sigmoid(out1), all1))
-            else:
-                assert 0, "Unsupported GAN type: {}".format(self.gan_type)
-        return loss
-
-    def calc_gen_loss(self, input_fake):
-        # calculate the loss to train G
-        outs0 = self.forward(input_fake)
-        loss = 0
-        for it, (out0) in enumerate(outs0):
-            if self.gan_type == 'lsgan':
-                loss += torch.mean((out0 - 1)**2) # LSGAN
-            elif self.gan_type == 'nsgan':
-                all1 = Variable(torch.ones_like(out0.data).cuda(), requires_grad=False)
-                loss += torch.mean(F.binary_cross_entropy(F.sigmoid(out0), all1))
-            else:
-                assert 0, "Unsupported GAN type: {}".format(self.gan_type)
-        return loss
 ##################################################################################
 # Generator
 ##################################################################################
@@ -176,9 +116,7 @@ class AdaINGen(nn.Module):
 
     def encode(self, images):
         # encode an image to its content and style codes
-        color_shift = ColorShift()
-        images_mono = color_shift.process(images)
-        style_fake = self.enc_style(images_mono)
+        style_fake = self.enc_style(images)
         content = self.enc_content(images)
         return content, style_fake
 
@@ -291,7 +229,7 @@ class Decoder(nn.Module):
         self.model += [ResBlocks(n_res, dim, res_norm, activ, pad_type=pad_type)]
         # upsampling blocks
         for i in range(n_upsample):
-            self.model += [nn.Upsample(scale_factor=2,mode="bilinear"),
+            self.model += [nn.Upsample(scale_factor=2),
                            Conv2dBlock(dim, dim // 2, 5, 1, 2, norm='ln', activation=activ, pad_type=pad_type)]
             dim //= 2
         # use reflection padding in the last conv layer
@@ -329,29 +267,6 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.model(x.view(x.size(0), -1))
 
-class Block(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, act=True):
-        super().__init__()
-        self.act = act
-        self.sn_conv = spectral_norm(nn.Conv2d(
-                in_channels,
-                out_channels,
-                kernel_size,
-                stride, 
-                padding,
-                padding_mode="zeros" # Author's code used slim.convolution2d, which is using SAME padding (zero padding in pytorch) 
-            ))
-        
-        self.LReLU = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-
-    def forward(self, x):
-        x = self.sn_conv(x)
-        if self.act:
-            x = self.LReLU(x)
-
-        return x
-
-
 ##################################################################################
 # Basic Blocks
 ##################################################################################
@@ -372,7 +287,7 @@ class ResBlock(nn.Module):
 
 class Conv2dBlock(nn.Module):
     def __init__(self, input_dim ,output_dim, kernel_size, stride,
-                 padding=0, norm='none', activation='lrelu', pad_type='zero'):
+                 padding=0, norm='none', activation='relu', pad_type='zero'):
         super(Conv2dBlock, self).__init__()
         self.use_bias = True
         # initialize padding
@@ -659,25 +574,3 @@ class SpectralNorm(nn.Module):
     def forward(self, *args):
         self._update_u_v()
         return self.module.forward(*args)
-
-class Block(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, act=True):
-        super().__init__()
-        self.act = act
-        self.sn_conv = spectral_norm(nn.Conv2d(
-                in_channels,
-                out_channels,
-                kernel_size,
-                stride, 
-                padding,
-                padding_mode="zeros" # Author's code used slim.convolution2d, which is using SAME padding (zero padding in pytorch) 
-            ))
-        
-        self.LReLU = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-
-    def forward(self, x):
-        x = self.sn_conv(x)
-        if self.act:
-            x = self.LReLU(x)
-
-        return x
