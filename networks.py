@@ -87,6 +87,7 @@ class MsImageDis(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, in_channels=3, out_channels=1, features=[32, 64, 128]):
         super().__init__()
+        self.gan_type = 'lsgan'
         self.model = nn.Sequential(
             #k3n32s2
             Block(in_channels, features[0], kernel_size=3, stride=2, padding=1),
@@ -174,13 +175,13 @@ class AdaINGen(nn.Module):
         images_recon = self.decode(content, style_fake)
         return images_recon
 
-    def encode(self, images, image_mono):
+    def encode(self, images, images_mono):
         # encode an image to its content and style codes
         style_fake=self.enc_style(images_mono)
         content = self.enc_content(images)
         return content, style_fake
 
-    def decode(self, content, style, style_mono):
+    def decode(self, content, style):
         # decode content and style codes to an image
         adain_params = self.mlp(style)
      #   adain_params_mono = self.mlp(style_mono)

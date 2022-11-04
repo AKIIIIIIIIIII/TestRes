@@ -86,7 +86,7 @@ class MUNIT_Trainer(nn.Module):
         s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())       
 
         # encode
-        x_a_mono, x_b_mono = self.color_shift(x_a,x_b)
+        x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
         c_a, s_a_prime = self.gen_a.encode(x_a,x_a_mono)
         c_b, s_b_prime = self.gen_b.encode(x_b, x_b_mono)
         # decode (within domain)
@@ -96,7 +96,7 @@ class MUNIT_Trainer(nn.Module):
         x_ab = self.gen_b.decode(c_a, s_b)
         x_ba = self.gen_a.decode(c_b, s_a)
         #monokuro
-        x_ab_mono, x_ba_mono = color_shift.process(x_ab,x_ba)
+        x_ab_mono, x_ba_mono = self.color_shift.process(x_ab,x_ba)
         # encode again
         c_b_recon, s_a_recon = self.gen_a.encode(x_ba, x_ba_mono)
         c_a_recon, s_b_recon = self.gen_b.encode(x_ab, x_ab_mono)
@@ -175,9 +175,10 @@ class MUNIT_Trainer(nn.Module):
         self.dis_opt.zero_grad()
         s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
         s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
-        # encode
-        c_a, _ = self.gen_a.encode(x_a)
-        c_b, _ = self.gen_b.encode(x_b)
+        # encode        
+        x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
+        c_a, _ = self.gen_a.encode(x_a, x_a_mono)
+        c_b, _ = self.gen_b.encode(x_b, x_b_mono)
         # decode (cross domain)
         x_ba = self.gen_a.decode(c_b, s_a)
         x_ab = self.gen_b.decode(c_a, s_b)
