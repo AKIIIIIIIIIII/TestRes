@@ -5,6 +5,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 from networks import AdaINGen, MsImageDis, VAEGen
 from utils import vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
+from losses import VariationLoss
 from torchvision.utils import save_image
 from structure_extractor import SuperPixel
 from texture_extractor import ColorShift
@@ -93,24 +94,35 @@ class MUNIT_Trainer(nn.Module):
         #monokuro
         color_shift = ColorShift()
         x_ab_mono, x_b_mono = color_shift.process(x_ab,x_b)
+        # encode again
+        c_b_recon, s_a_recon = self.gen_a.encode(x_ba)
+        c_a_recon, s_b_recon = self.gen_b.encode(x_ab)
         # reconstruction loss
         self.loss_gen_recon_x_a = self.recon_criterion(x_a_recon, x_a)
         self.loss_gen_recon_x_b = self.recon_criterion(x_b_recon, x_b)
         self.loss_gen_recon_s_a = self.recon_criterion(s_a_recon, s_a)
         self.loss_gen_recon_s_b = self.recon_criterion(s_b_recon, s_b)
+        self.loss_gen_recon_c_a = self.recon_criterion(c_a_recon, c_a)
+        self.loss_gen_recon_c_b = self.recon_criterion(c_b_recon, c_b)
         # GAN loss
         self.loss_gen_adv_a = (self.dis_a.calc_gen_loss(x_ab) + self.dis_a.calc_gen_loss(x_ba))/2.0
         #monokuro loss
-        self.loss_gen_mono = self.recon_criterion(x_ab_mono, x_b)
+        self.loss_gen_mono = nn.MSELoss(x_ab_mono, x_b)
         # domain-invariant perceptual loss
         self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0
+        #tv loss
+        var_loss = VariationLoss(1)
+        self.loss_tv = var_loss(x_ab)
         # total loss
         self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + \
                               hyperparameters['recon_x_w'] * self.loss_gen_recon_x_a + \
                               hyperparameters['recon_s_w'] * self.loss_gen_recon_s_a + \
                               hyperparameters['recon_x_w'] * self.loss_gen_recon_x_b + \
                               hyperparameters['recon_s_w'] * self.loss_gen_recon_s_b + \
+                              hyperparameters['recon_c_w'] * self.loss_gen_recon_c_a + \
+                              hyperparameters['recon_c_w'] * self.loss_gen_recon_c_b + \
                               hyperparameters['texture_w'] * self.loss_gen_mono + \
+                              hyperparameters['tv_w'] * self.loss_tv + \
                               hyperparameters['vgg_w'] * self.loss_gen_vgg_b
         self.loss_gen_total.backward()
         self.gen_opt.step()
@@ -120,7 +132,8 @@ class MUNIT_Trainer(nn.Module):
         img_fea = vgg(img_vgg)
         target_vgg = vgg_preprocess(img)
         target_fea = vgg(target_vgg)
-        return torch.mean((self.instancenorm(img_fea) - self.instancenorm(target_fea)) ** 2)
+ #       return torch.mean((self.instancenorm(img_fea) - self.instancenorm(target_fea)) ** 2)
+        return nn.L1Loss(img_fea, target_fea)
 
 
     def sample(self, x_a, x_b):
