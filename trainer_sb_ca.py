@@ -161,8 +161,9 @@ class MUNIT_Trainer(nn.Module):
         s_b1 = Variable(self.s_b)
         s_b2 = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
         x_ab1, x_ab2, x_a_recon = [], [], []
+        x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
         for i in range(x_a.size(0)):
-            c_a, s_a_fake = self.gen_a.encode(x_a[i].unsqueeze(0))
+            c_a, s_a_fake = self.gen_a.encode(x_a[i].unsqueeze(0),x_a_mono[i].unsqueeze(0))
             x_a_recon.append(self.gen_a.decode(c_a, s_a_fake))
             x_ab1.append(self.gen_a.decode(c_a, s_b1[i].unsqueeze(0)))
             x_ab2.append(self.gen_a.decode(c_a, s_b2[i].unsqueeze(0)))
