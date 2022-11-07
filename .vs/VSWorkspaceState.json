@@ -1,10 +1,8 @@
 {
   "ExpandedNodes": [
     "",
-    "\\configs",
-    "\\datasets\\demo_edges2handbags",
-    "\\datasets\\demo_edges2handbags\\testA"
+    "\\configs"
   ],
-  "SelectedNode": "\\configs\\demo_edges2handbags_folder.yaml",
+  "SelectedNode": "\\networks.py",
   "PreviewInSolutionExplorer": false
 }
