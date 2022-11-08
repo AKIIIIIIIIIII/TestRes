@@ -2,7 +2,7 @@
 Copyright (C) 2017 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
-from networksold import AdaINGen, MsImageDis, VAEGen#, Discriminator, 
+from networks import AdaINGen, MsImageDis, VAEGen#, Discriminator, 
 from utils import vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
 from losses import VariationLoss
@@ -36,8 +36,8 @@ class MUNIT_Trainer(nn.Module):
         # Setup the optimizers
         beta1 = hyperparameters['beta1']
         beta2 = hyperparameters['beta2']
-        dis_params = list(self.dis_a.parameters()) #+ list(self.dis_b.parameters())
-        gen_params = list(self.gen_a.parameters()) #+ list(self.gen_b.parameters())
+        dis_params = list(self.dis_a.parameters()) + list(self.dis_b.parameters())
+        gen_params = list(self.gen_a.parameters()) + list(self.gen_b.parameters())
         self.dis_opt = torch.optim.Adam([p for p in dis_params if p.requires_grad],
                                         lr=lr, betas=(beta1, beta2), weight_decay=hyperparameters['weight_decay'])
         self.gen_opt = torch.optim.Adam([p for p in gen_params if p.requires_grad],
