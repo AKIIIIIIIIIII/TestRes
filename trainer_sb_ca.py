@@ -124,9 +124,9 @@ class MUNIT_Trainer(nn.Module):
         self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0     
         self.loss_gen_vgg_a = self.compute_vgg_loss(self.vgg, x_ba.detach(), x_b) if hyperparameters['vgg_w'] > 0 else 0
         #tv loss
-        var_loss = VariationLoss(1)
-        self.loss_tv_a = var_loss(x_ab)       
-        self.loss_tv_b = var_loss(x_ba)
+        #var_loss = VariationLoss(1)
+        #self.loss_tv_a = var_loss(x_ab)       
+        #self.loss_tv_b = var_loss(x_ba)
         # total loss
         self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + \
                               hyperparameters['recon_x_w'] * self.loss_gen_recon_x_a + \
@@ -137,12 +137,13 @@ class MUNIT_Trainer(nn.Module):
                               hyperparameters['recon_c_w'] * self.loss_gen_recon_c_b + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_a + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_b + \
-                              hyperparameters['tv_w'] * self.loss_tv_a + \
-                              hyperparameters['tv_w'] * self.loss_tv_b + \
                               hyperparameters['vgg_w'] * self.loss_gen_vgg_a + \
                               hyperparameters['vgg_w'] * self.loss_gen_vgg_b
+                              #hyperparameters['tv_w'] * self.loss_tv_a + \
+                             # hyperparameters['tv_w'] * self.loss_tv_b + \
                              # hyperparameters['texture_w'] * self.loss_gen_mono_a + \
                              # hyperparameters['texture_w'] * self.loss_gen_mono_b + \
+
         self.loss_gen_total.backward()
         self.gen_opt.step()
 
