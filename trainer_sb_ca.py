@@ -147,7 +147,7 @@ class MUNIT_Trainer(nn.Module):
         self.gen_opt.step()
 
     def compute_vgg_loss(self, vgg, img, target):
-        img_vgg = vgg_preprocess_color(img)
+        img_vgg = vgg_preprocess(img)
         img_fea = vgg(img_vgg)
         target_vgg = vgg_preprocess(target)
         target_fea = vgg(target_vgg)
