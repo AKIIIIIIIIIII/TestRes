@@ -70,15 +70,6 @@ class MUNIT_Trainer(nn.Module):
         self.train()
         return x_ab, x_ba
 
-    def gen_update_ini(self, x_a, x_b, hyperparameters):
-        self.gen_opt.zero_grad()
-        c_a, s_a_prime = self.gen_a.encode(x_a)
-        x_a_recon = self.gen_a.decode(c_a, s_a_prime)
-        self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_a_recon.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0
-        # total loss
-        self.loss_gen_total = hyperparameters['vgg_w'] * self.loss_gen_vgg_b
-        self.loss_gen_total.backward()
-        self.gen_opt.step()
 
     def gen_update(self, x_a, x_b, hyperparameters):
         self.gen_opt.zero_grad()
