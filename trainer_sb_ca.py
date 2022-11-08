@@ -2,7 +2,7 @@
 Copyright (C) 2017 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
-from networks import AdaINGen, Discriminator, MsImageDis, VAEGen
+from networks import AdaINGen, MsImageDis, VAEGen#, Discriminator, 
 from utils import vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
 from losses import VariationLoss
@@ -63,22 +63,13 @@ class MUNIT_Trainer(nn.Module):
         self.eval()
         s_a = Variable(self.s_a)
         s_b = Variable(self.s_b)
-        c_a, s_a_fake = self.gen_a.encode(x_a)
-        c_b, s_b_fake = self.gen_b.encode(x_b)
+        x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
+        c_a, s_a_fake = self.gen_a.encode(x_a, x_a_mono)
+        c_b, s_b_fake = self.gen_b.encode(x_b, x_b_mono)
         x_ba = self.gen_a.decode(c_b, s_a)
         x_ab = self.gen_b.decode(c_a, s_b)
         self.train()
         return x_ab, x_ba
-
-    def gen_update_ini(self, x_a, x_b, hyperparameters):
-        self.gen_opt.zero_grad()
-        c_a, s_a_prime = self.gen_a.encode(x_a)
-        x_a_recon = self.gen_a.decode(c_a, s_a_prime)
-        self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_a_recon.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0
-        # total loss
-        self.loss_gen_total = hyperparameters['vgg_w'] * self.loss_gen_vgg_b
-        self.loss_gen_total.backward()
-        self.gen_opt.step()
 
     def gen_update(self, x_a, x_b, hyperparameters):
         self.gen_opt.zero_grad()
