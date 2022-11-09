@@ -2,13 +2,14 @@
 Copyright (C) 2017 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
-from networks import AdaINGen, Discriminator, MsImageDis, VAEGen
+from networksold import AdaINGen, MsImageDis, VAEGen#, Discriminator, 
 from utils import vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
 from losses import VariationLoss
 from torchvision.utils import save_image
 from structure_extractor import SuperPixel
 from texture_extractor import ColorShift
+from surface_extractor import GuidedFilter
 import torch
 import torch.nn as nn
 import os
@@ -21,23 +22,22 @@ class MUNIT_Trainer(nn.Module):
         lr = hyperparameters['lr']
         # Initiate the networks
         self.gen_a = AdaINGen(hyperparameters['input_dim_a'], hyperparameters['gen'])  # auto-encoder for domain a
-        self.gen_b = AdaINGen(hyperparameters['input_dim_b'], hyperparameters['gen'])  # auto-encoder for domain b
         self.dis_a = MsImageDis(hyperparameters['input_dim_a'], hyperparameters['dis'])  # discriminator for domain a
         self.dis_b = MsImageDis(hyperparameters['input_dim_b'], hyperparameters['dis'])  # discriminator for domain b
         self.instancenorm = nn.InstanceNorm2d(512, affine=False)
         self.style_dim = hyperparameters['gen']['style_dim']
         self.color_shift = ColorShift()
+        self.extract_surface= GuidedFilter()
 
         # fix the noise used in sampling
         display_size = int(hyperparameters['display_size'])
         self.s_a = torch.randn(display_size, self.style_dim, 1, 1).cuda()
-        self.s_b = torch.randn(display_size, self.style_dim, 1, 1).cuda()
 
         # Setup the optimizers
         beta1 = hyperparameters['beta1']
         beta2 = hyperparameters['beta2']
-        dis_params = list(self.dis_a.parameters()) #+ list(self.dis_b.parameters())
-        gen_params = list(self.gen_a.parameters()) #+ list(self.gen_b.parameters())
+        dis_params = list(self.dis_a.parameters()) + list(self.dis_b.parameters())
+        gen_params = list(self.gen_a.parameters())
         self.dis_opt = torch.optim.Adam([p for p in dis_params if p.requires_grad],
                                         lr=lr, betas=(beta1, beta2), weight_decay=hyperparameters['weight_decay'])
         self.gen_opt = torch.optim.Adam([p for p in gen_params if p.requires_grad],
@@ -62,78 +62,51 @@ class MUNIT_Trainer(nn.Module):
     def forward(self, x_a, x_b):
         self.eval()
         s_a = Variable(self.s_a)
-        s_b = Variable(self.s_b)
+  #      x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
         c_a, s_a_fake = self.gen_a.encode(x_a)
-        c_b, s_b_fake = self.gen_b.encode(x_b)
-        x_ba = self.gen_a.decode(c_b, s_a)
-        x_ab = self.gen_b.decode(c_a, s_b)
+        x_ab = self.gen_a.decode(c_a, s_a)
         self.train()
-        return x_ab, x_ba
-
+        return x_ab
 
     def gen_update(self, x_a, x_b, hyperparameters):
         self.gen_opt.zero_grad()
         s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
-        s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())       
-
         # encode
-        x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
-        c_a, s_a_prime = self.gen_a.encode(x_a,x_a_mono)
-        c_b, s_b_prime = self.gen_b.encode(x_b, x_b_mono)
+        c_a, s_a_prime = self.gen_a.encode(x_a)
         # decode (within domain)
         x_a_recon = self.gen_a.decode(c_a, s_a_prime)
-        x_b_recon = self.gen_b.decode(c_b, s_b_prime)
         # decode (cross domain)
-        x_ab = self.gen_b.decode(c_a, s_b)
-        x_ba = self.gen_a.decode(c_b, s_a)
-        #monokuro
-        x_ab_mono, x_ba_mono = self.color_shift.process(x_ab,x_ba)
-        # encode again
-        c_b_recon, s_a_recon = self.gen_a.encode(x_ba, x_ba_mono)
-        c_a_recon, s_b_recon = self.gen_b.encode(x_ab, x_ab_mono)
+        x_ab = self.gen_a.decode(c_a, s_a)
         # reconstruction loss
         self.loss_gen_recon_x_a = self.recon_criterion(x_a_recon, x_a)
-        self.loss_gen_recon_x_b = self.recon_criterion(x_b_recon, x_b)
-        self.loss_gen_recon_s_a = self.recon_criterion(s_a_recon, s_a)
-        self.loss_gen_recon_s_b = self.recon_criterion(s_b_recon, s_b)
-        self.loss_gen_recon_c_a = self.recon_criterion(c_a_recon, c_a)
-        self.loss_gen_recon_c_b = self.recon_criterion(c_b_recon, c_b)
-
-        # decode again (if needed)
-        x_aba = self.gen_a.decode(c_a_recon, s_a_prime) if hyperparameters['recon_x_cyc_w'] > 0 else None
-        x_bab = self.gen_b.decode(c_b_recon, s_b_prime) if hyperparameters['recon_x_cyc_w'] > 0 else None
-        
-        self.loss_gen_cycrecon_x_a = self.recon_criterion(x_aba, x_a) if hyperparameters['recon_x_cyc_w'] > 0 else 0
-        self.loss_gen_cycrecon_x_b = self.recon_criterion(x_bab, x_b) if hyperparameters['recon_x_cyc_w'] > 0 else 0
         # GAN loss
-        self.loss_gen_adv_a = self.dis_a.calc_gen_loss(x_ba)
-        self.loss_gen_adv_b = self.dis_b.calc_gen_loss(x_ab)        
+        x_ab_mono, x_ba_mono = self.color_shift.process(x_ab,x_ab)
+        self.loss_gen_adv_a = self.dis_a.calc_gen_loss(x_ab_mono)
         #monokuro loss
         #self.loss_gen_mono_a = torch.mean((x_ab_mono - x_b) ** 2)
         #self.loss_gen_mono_b = torch.mean((x_ba_mono - x_a) ** 2)
+        output_photo = self.extract_surface.process(x_a, x_ab, r=1)
+        blur_fake = self.extract_surface.process(output_photo, output_photo, r=5, eps=2e-1)
+        self.loss_gen_adv_b = self.dis_b.calc_gen_loss(blur_fake)
         # domain-invariant perceptual loss
-        self.loss_gen_vgg_b = self.compute_vgg_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0     
-        self.loss_gen_vgg_a = self.compute_vgg_loss(self.vgg, x_ba.detach(), x_b) if hyperparameters['vgg_w'] > 0 else 0
+        self.loss_gen_vgg_a = self.compute_vgg_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0        
+        self.loss_gen_structure_a = self.compute_structure_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['texture_w'] > 0 else 0   
         #tv loss
         var_loss = VariationLoss(1)
-        self.loss_tv_a = var_loss(x_ab)       
-        self.loss_tv_b = var_loss(x_ba)
+        self.loss_tv_a = var_loss(x_ab)     
         # total loss
-        self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + \
+        self.loss_gen_total = hyperparameters['D_text'] * self.loss_gen_adv_a + \
                               hyperparameters['recon_x_w'] * self.loss_gen_recon_x_a + \
-                              hyperparameters['recon_s_w'] * self.loss_gen_recon_s_a + \
-                              hyperparameters['recon_x_w'] * self.loss_gen_recon_x_b + \
-                              hyperparameters['recon_s_w'] * self.loss_gen_recon_s_b + \
-                              hyperparameters['recon_c_w'] * self.loss_gen_recon_c_a + \
-                              hyperparameters['recon_c_w'] * self.loss_gen_recon_c_b + \
-                              hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_a + \
-                              hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_b + \
+                              hyperparameters['D_sur'] * self.loss_gen_adv_b + \
                               hyperparameters['tv_w'] * self.loss_tv_a + \
-                              hyperparameters['tv_w'] * self.loss_tv_b + \
                               hyperparameters['vgg_w'] * self.loss_gen_vgg_a + \
-                              hyperparameters['vgg_w'] * self.loss_gen_vgg_b
+                              hyperparameters['structure_w'] * self.loss_gen_structure_a
+                            #  hyperparameters['texture_w'] * self.loss_gen_vgg_a
+                              
+                             # hyperparameters['tv_w'] * self.loss_tv_b + \
                              # hyperparameters['texture_w'] * self.loss_gen_mono_a + \
                              # hyperparameters['texture_w'] * self.loss_gen_mono_b + \
+
         self.loss_gen_total.backward()
         self.gen_opt.step()
 
@@ -146,15 +119,24 @@ class MUNIT_Trainer(nn.Module):
    #     loss_abs = torch.abs(img_fea - target_fea)
    #     return loss_abs[loss_abs != 0.0].mean()
 
+    def compute_structure_loss(self, vgg, img, target):
+        img_vgg = vgg_preprocess_color(img)
+        img_fea = vgg(img_vgg)
+        target_vgg = vgg_preprocess(target)
+        target_fea = vgg(target_vgg)
+ #       return torch.mean((self.instancenorm(img_fea) - self.instancenorm(target_fea)) ** 2)
+        loss_abs = torch.abs(img_fea - target_fea)
+        return loss_abs[loss_abs != 0.0].mean()
+
+
 
     def sample(self, x_a, x_b):
         self.eval()
         s_b1 = Variable(self.s_b)
         s_b2 = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
         x_ab1, x_ab2, x_a_recon = [], [], []
-        x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
         for i in range(x_a.size(0)):
-            c_a, s_a_fake = self.gen_a.encode(x_a[i].unsqueeze(0),x_a_mono[i].unsqueeze(0))
+            c_a, s_a_fake = self.gen_a.encode(x_a[i].unsqueeze(0))
             x_a_recon.append(self.gen_a.decode(c_a, s_a_fake))
             x_ab1.append(self.gen_a.decode(c_a, s_b1[i].unsqueeze(0)))
             x_ab2.append(self.gen_a.decode(c_a, s_b2[i].unsqueeze(0)))
@@ -166,18 +148,19 @@ class MUNIT_Trainer(nn.Module):
     def dis_update(self, x_a, x_b, hyperparameters):
         self.dis_opt.zero_grad()
         s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
-        s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
         # encode        
         x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
-        c_a, _ = self.gen_a.encode(x_a, x_a_mono)
-        c_b, _ = self.gen_b.encode(x_b, x_b_mono)
+        c_a, _ = self.gen_a.encode(x_a)
         # decode (cross domain)
-        x_ba = self.gen_a.decode(c_b, s_a)
-        x_ab = self.gen_b.decode(c_a, s_b)
-        # D loss
-        self.loss_dis_a = self.dis_a.calc_dis_loss(x_ba.detach(), x_a)
-        self.loss_dis_b = self.dis_b.calc_dis_loss(x_ab.detach(), x_b)
-        self.loss_dis_total = hyperparameters['gan_w'] * self.loss_dis_a + hyperparameters['gan_w'] * self.loss_dis_b
+        x_ab = self.gen_a.decode(c_a, s_a)
+        # D loss   
+        x_ab_mono, x_ba_mono = self.color_shift.process(x_ab.detach(),x_ba.detach())
+        output_photo = self.extract_surface.process(x_a, x_ab, r=1)
+        blur_fake = self.extract_surface.process(output_photo, output_photo, r=5, eps=2e-1)
+        blur_cartoon = self.extract_surface.process(x_b, x_b, r=5, eps=2e-1)
+        self.loss_dis_a = self.dis_a.calc_dis_loss(x_ab_mono, x_b_mono)
+        self.loss_dis_b = self.dis_b.calc_dis_loss(blur_fake, blur_cartoon)
+        self.loss_dis_total =  self.loss_dis_a + self.loss_dis_b
         self.loss_dis_total.backward()
         self.dis_opt.step()
         #################
