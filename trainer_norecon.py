@@ -32,6 +32,7 @@ class MUNIT_Trainer(nn.Module):
         # fix the noise used in sampling
         display_size = int(hyperparameters['display_size'])
         self.s_a = torch.randn(display_size, self.style_dim, 1, 1).cuda()
+        self.s_b = torch.randn(display_size, self.style_dim, 1, 1).cuda()
 
         # Setup the optimizers
         beta1 = hyperparameters['beta1']
@@ -62,6 +63,7 @@ class MUNIT_Trainer(nn.Module):
     def forward(self, x_a, x_b):
         self.eval()
         s_a = Variable(self.s_a)
+        s_b = Variable(self.s_b)
   #      x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
         c_a, s_a_fake = self.gen_a.encode(x_a)
         x_ab = self.gen_a.decode(c_a, s_a)
@@ -73,12 +75,14 @@ class MUNIT_Trainer(nn.Module):
         s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
         # encode
         c_a, s_a_prime = self.gen_a.encode(x_a)
+        c_b, s_b = self.gen_a.encode(x_b)
         # decode (within domain)
         x_a_recon = self.gen_a.decode(c_a, s_a_prime)
         # decode (cross domain)
         x_ab = self.gen_a.decode(c_a, s_a)
         # reconstruction loss
-        self.loss_gen_recon_x_a = self.recon_criterion(x_a_recon, x_a)
+        self.loss_gen_recon_x_a = self.recon_criterion(x_a_recon, x_a)    
+        self.loss_gen_s = self.recon_criterion(s_a, s_b)
         # GAN loss
         x_ab_mono, x_ba_mono = self.color_shift.process(x_ab,x_ab)
         self.loss_gen_adv_a = self.dis_a.calc_gen_loss(x_ab_mono)
@@ -90,7 +94,7 @@ class MUNIT_Trainer(nn.Module):
         self.loss_gen_adv_b = self.dis_b.calc_gen_loss(blur_fake)
         # domain-invariant perceptual loss
         self.loss_gen_vgg_a = self.compute_vgg_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['vgg_w'] > 0 else 0        
-        self.loss_gen_structure_a = self.compute_structure_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['texture_w'] > 0 else 0   
+        self.loss_gen_structure_a = self.compute_structure_loss(self.vgg, x_ab.detach(), x_a) if hyperparameters['structure_w'] > 0 else 0   
         #tv loss
         var_loss = VariationLoss(1)
         self.loss_tv_a = var_loss(x_ab)     
@@ -100,6 +104,7 @@ class MUNIT_Trainer(nn.Module):
                               hyperparameters['D_sur'] * self.loss_gen_adv_b + \
                               hyperparameters['tv_w'] * self.loss_tv_a + \
                               hyperparameters['vgg_w'] * self.loss_gen_vgg_a + \
+                              hyperparameters['s_w'] * self.loss_gen_s + \
                               hyperparameters['structure_w'] * self.loss_gen_structure_a
                             #  hyperparameters['texture_w'] * self.loss_gen_vgg_a
                               
@@ -154,7 +159,7 @@ class MUNIT_Trainer(nn.Module):
         # decode (cross domain)
         x_ab = self.gen_a.decode(c_a, s_a)
         # D loss   
-        x_ab_mono, x_ba_mono = self.color_shift.process(x_ab.detach(),x_ba.detach())
+        x_ab_mono, x_ba_mono = self.color_shift.process(x_ab.detach(),x_ab.detach())
         output_photo = self.extract_surface.process(x_a, x_ab, r=1)
         blur_fake = self.extract_surface.process(output_photo, output_photo, r=5, eps=2e-1)
         blur_cartoon = self.extract_surface.process(x_b, x_b, r=5, eps=2e-1)
