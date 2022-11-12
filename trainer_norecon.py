@@ -80,8 +80,11 @@ class MUNIT_Trainer(nn.Module):
         x_a_recon = self.gen_a.decode(c_a, s_a_prime)
         # decode (cross domain)
         x_ab = self.gen_a.decode(c_a, s_a)
+        
+        c_aba, s_aba_prime = self.gen_a.encode(x_ab)
         # reconstruction loss
-        self.loss_gen_recon_x_a = self.recon_criterion(x_a_recon, x_a)    
+        self.loss_gen_recon_x_a = self.recon_criterion(x_a_recon, x_a)
+        self.loss_gen_recon_c_a = self.recon_criterion(c_aba, c_a)    
         self.loss_gen_s = self.recon_criterion(s_a, s_b)
         # GAN loss
      #   x_ab_mono, x_ba_mono = self.color_shift.process(x_ab,x_ab)
@@ -101,6 +104,7 @@ class MUNIT_Trainer(nn.Module):
         # total loss
         self.loss_gen_total = hyperparameters['D_text'] * self.loss_gen_adv_a + \
                               hyperparameters['recon_x_w'] * self.loss_gen_recon_x_a + \
+                              hyperparameters['recon_c_w'] * self.loss_gen_recon_c_a + \
                               hyperparameters['D_sur'] * self.loss_gen_adv_b + \
                               hyperparameters['tv_w'] * self.loss_tv_a + \
                               hyperparameters['vgg_w'] * self.loss_gen_vgg_a + \
@@ -133,8 +137,6 @@ class MUNIT_Trainer(nn.Module):
         loss_abs = torch.abs(img_fea - target_fea)
         return loss_abs[loss_abs != 0.0].mean()
 
-
-
     def sample(self, x_a, x_b):
         self.eval()
         s_b1 = Variable(self.s_b)
@@ -154,7 +156,7 @@ class MUNIT_Trainer(nn.Module):
         self.dis_opt.zero_grad()
         s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
         # encode        
-        x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
+      #  x_a_mono, x_b_mono = self.color_shift.process(x_a,x_b)
         c_a, _ = self.gen_a.encode(x_a)
         # decode (cross domain)
         x_ab = self.gen_a.decode(c_a, s_a)
