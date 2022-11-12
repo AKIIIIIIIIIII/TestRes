@@ -24,7 +24,7 @@ D_sur: 0.5                      # weight of adversarial loss
 D_text: 1     
 recon_x_w: 500                 # weight of image reconstruction loss
 recon_s_w: 0                  # weight of style reconstruction loss
-recon_c_w: 0                  # weight of content reconstruction loss
+recon_c_w: 100                  # weight of content reconstruction loss
 recon_x_cyc_w: 0              # weight of explicit style augmented cycle consistency loss
 tv_w: 10000
 vgg_w: 300
