@@ -114,5 +114,3 @@ while True:
         iterations += 1
         if iterations >= max_iter:
             sys.exit('Finish training')
-
-rtoon
