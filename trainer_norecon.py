@@ -155,7 +155,7 @@ class MUNIT_Trainer(nn.Module):
         c_a, _ = self.gen_a.encode(x_a)
         # decode (cross domain)
         x_ab = self.gen_a.decode(c_a, s_a)
-        x_b_mono, x_ab_mono = self.color_shift.process(x_b, x_ab)
+        x_b_mono, x_ab_mono = self.color_shift.process(x_b,x_ab)
         # D loss
       #  x_ab_mono, x_ba_mono = self.color_shift.process(x_ab.detach(),x_ab.detach())
         output_photo = self.extract_surface.process(x_a, x_ab, r=1)
@@ -163,7 +163,7 @@ class MUNIT_Trainer(nn.Module):
         blur_cartoon = self.extract_surface.process(x_b, x_b, r=5, eps=2e-1)
         self.loss_dis_a = self.dis_a.calc_dis_loss(x_ab_mono, x_b_mono)
         self.loss_dis_b = self.dis_b.calc_dis_loss(blur_fake, blur_cartoon)
-        self.loss_dis_total = self.loss_dis_a + self.loss_dis_b
+        self.loss_dis_total =  self.loss_dis_a + self.loss_dis_b
         self.loss_dis_total.backward()
         self.dis_opt.step()
         #################

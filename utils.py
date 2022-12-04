@@ -189,6 +189,42 @@ def slerp(val, low, high):
     so = np.sin(omega)
     return np.sin((1.0 - val) * omega) / so * low + np.sin(val * omega) / so * high
 
+def save_checkpoint(model, optimizer, epoch, folder, filename="my_checkpoint.pth.tar"):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    print("=> Saving checkpoint")
+    checkpoint = {
+        "state_dict": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+    }
+    path = os.path.join(folder, str(epoch) + "_" + filename)
+    torch.save(checkpoint, path)
+    print("=> checkpoint saved: " + str(path))
+
+def sample(x_a, x_b, gen_a, style_dim = 8):
+    gen_a.eval()
+    s_b1 = Variable(torch.randn(10, style_dim, 1, 1).cuda())
+    s_b2 = Variable(torch.randn(x_b.size(0), style_dim, 1, 1).cuda())
+    x_ab1, x_ab2, x_a_recon = [], [], []
+    for i in range(x_a.size(0)):
+        c_a, s_a_fake = gen_a.encode(x_a[i].unsqueeze(0))
+        x_a_recon.append(gen_a.decode(c_a, s_a_fake))
+        x_ab1.append(gen_a.decode(c_a, s_b1[i].unsqueeze(0)))
+        x_ab2.append(gen_a.decode(c_a, s_b2[i].unsqueeze(0)))
+    x_ab1, x_ab2 = torch.cat(x_ab1), torch.cat(x_ab2)
+    x_a_recon = torch.cat(x_a_recon)
+    gen_a.train()
+    return x_a, x_a_recon, x_ab1, x_ab2
+
+def save_checkpoint_sp(Dt, Ds, G, Dop, Gop,epoch, snapshot_dir, latest = ""):
+    # Save generators, discriminators, and optimizers
+    G_name = os.path.join(snapshot_dir, latest + 'gen_%08d.pt' % (epoch + 1))
+    D_name = os.path.join(snapshot_dir, latest + 'D_%08d.pt' % (epoch + 1))
+    opt_name = os.path.join(snapshot_dir, latest + 'optimizer.pt')
+    torch.save({'a': G.state_dict()}, G_name)
+    torch.save({'a': Ds.state_dict(), 'b': Dt.state_dict()}, D_name)
+    torch.save({'gen': Gop.state_dict(), 'dis': Dop.state_dict()}, opt_name)
 
 def get_slerp_interp(nb_latents, nb_interp, z_dim):
     """
@@ -281,6 +317,25 @@ def vgg_preprocess_color(batch):
     batch = batch.sub(Variable(mean)) # subtract mean
     return batch
 
+def resume(self, checkpoint_dir, hyperparameters):
+    # Load generators
+    last_model_name = get_model_list(checkpoint_dir, "gen")
+    state_dict = torch.load(last_model_name)
+    self.gen_a.load_state_dict(state_dict['a'])
+    iterations = int(last_model_name[-11:-3])
+    # Load discriminators
+    last_model_name = get_model_list(checkpoint_dir, "dis")
+    state_dict = torch.load(last_model_name)
+    self.dis_a.load_state_dict(state_dict['a'])
+    # Load optimizers
+    state_dict = torch.load(os.path.join(checkpoint_dir, 'optimizer.pt'))
+    self.dis_opt.load_state_dict(state_dict['dis'])
+    self.gen_opt.load_state_dict(state_dict['gen'])
+    # Reinitilize schedulers
+    self.dis_scheduler = get_scheduler(self.dis_opt, hyperparameters, iterations)
+    self.gen_scheduler = get_scheduler(self.gen_opt, hyperparameters, iterations)
+    print('Resume from iteration %d' % iterations)
+    return iterations
 
 def get_scheduler(optimizer, hyperparameters, iterations=-1):
     if 'lr_policy' not in hyperparameters or hyperparameters['lr_policy'] == 'constant':
