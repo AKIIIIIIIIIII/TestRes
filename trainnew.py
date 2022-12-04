@@ -40,12 +40,6 @@ max_iter = config['max_iter']
 display_size = config['display_size']
 config['vgg_model_path'] = opts.output_path
 
-train_loader_a, train_loader_b, test_loader_a, test_loader_b = get_all_data_loaders(config)
-train_display_images_a = torch.stack([train_loader_a.dataset[i] for i in range(display_size)]).cuda()
-train_display_images_b = torch.stack([train_loader_b.dataset[i] for i in range(display_size)]).cuda()
-test_display_images_a = torch.stack([test_loader_a.dataset[i] for i in range(display_size)]).cuda()
-test_display_images_b = torch.stack([test_loader_b.dataset[i] for i in range(display_size)]).cuda()
-
 # Setup logger and output folders
 model_name = os.path.splitext(os.path.basename(opts.config))[0]
 train_writer = tensorboardX.SummaryWriter(os.path.join(opts.output_path + "/logs", model_name))
@@ -89,6 +83,13 @@ if 'vgg_w' in config.keys() and config['vgg_w'] > 0:
     VGG19 = VGG19.to(config["DEVICE"])
     VGG19.eval()
 
+
+train_loader_a, train_loader_b, test_loader_a, test_loader_b = get_all_data_loaders(config)
+train_display_images_a = torch.stack([train_loader_a.dataset[i] for i in range(display_size)]).to(config["DEVICE"])
+train_display_images_b = torch.stack([train_loader_b.dataset[i] for i in range(display_size)]).to(config["DEVICE"])
+test_display_images_a = torch.stack([test_loader_a.dataset[i] for i in range(display_size)]).to(config["DEVICE"])
+test_display_images_b = torch.stack([test_loader_b.dataset[i] for i in range(display_size)]).to(config["DEVICE"])
+
 extract_structure = SuperPixel(config["DEVICE"], mode='simple')
 extract_texture = ColorShift(config["DEVICE"], mode='uniform', image_format='rgb')
 extract_surface = GuidedFilter()
@@ -97,19 +98,26 @@ L1_Loss = nn.L1Loss()
 MSE_Loss = nn.MSELoss()  # went through the author's code and found him using LSGAN, LSGAN should gives better training
 var_loss = VariationLoss(1)
 
+
+gen_a.apply(weights_init(config['init']))
+disc_texture.apply(weights_init('gaussian'))
+disc_surface.apply(weights_init('gaussian'))
+
 ## Start training
 # iterations = resume(checkpoint_directory, hyperparameters=config) if opts.resume else 0
 
-if config.INI:
+gen_a.to(config["DEVICE"])
+if config["INI"]:
     it = 0
     for epoch in range(config["INI"]):
-        loop = tqdm(zip(train_loader_a, train_loader_b), leave=True)
+        loop = tqdm(train_loader_a, leave=True)
         losses = []
 
-        for idx, (sample_photo, _) in enumerate(loop):
+        for idx, (sample_photo) in enumerate(loop):
             sample_photo = sample_photo.to(config["DEVICE"])
             c_a, s_a_prime = gen_a.encode(sample_photo)
             reconstructed = gen_a.decode(c_a, s_a_prime)
+
             sample_photo_feature = VGG19(sample_photo)
             reconstructed_feature = VGG19(reconstructed)
             reconstruction_loss = L1_Loss(reconstructed_feature, sample_photo_feature.detach()) * 255
