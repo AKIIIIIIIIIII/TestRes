@@ -297,10 +297,15 @@ def vgg_preprocess(batch):
     batch = batch.sub(Variable(mean)) # subtract mean
     return batch
 
-def save_training_images(image, dest_folder, suffix_filename:str):
+def save_training_images_fix(image, dest_folder, suffix_filename:str):
     if not os.path.exists(dest_folder):
         os.makedirs(dest_folder)
     save_image(image, os.path.join(dest_folder, f"{suffix_filename}.png"))
+
+def save_training_images(image, epoch, step, dest_folder, suffix_filename:str):
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+    save_image(image, os.path.join(dest_folder, f"epoch_{epoch}_step_{step}_{suffix_filename}.png"))
 
 def vgg_preprocess_color(batch):
     tensortype = type(batch.data)
