@@ -3,12 +3,12 @@
 # The best version for cartoonization(perhaps) old
 
 # logger options
-image_save_iter: 1       # How often do you want to save output images during training
+image_save_iter: 1000       # How often do you want to save output images during training
 image_display_iter: 1      # How often do you want to display output images during training
-display_size: 10               # How many images do you want to display each time
-snapshot_save_iter: 1       # How often do you want to save trained models
+display_size: 5               # How many images do you want to display each time
+snapshot_save_iter: 10       # How often do you want to save trained models
 log_iter: 1                   # How often do you want to log the training stats
-INI: 10
+INI: 3
 
 # optimization options
 max_iter: 500000             # maximum number of training iterations
@@ -60,9 +60,9 @@ crop_image_width: 256                       # random crop image of this width
 data_root: ./datasets/demo_edges2handbags/     # dataset folder location
 
 # cartoonTrans
-LAMBDA_SURFACE: 1
-LAMBDA_TEXTURE: 100
-LAMBDA_STRUCTURE: 50
-LAMBDA_CONTENT: 100
+LAMBDA_SURFACE: 0.1
+LAMBDA_TEXTURE: 1
+LAMBDA_STRUCTURE: 200
+LAMBDA_CONTENT: 180
 LAMBDA_VARIATION: 100000
 DEVICE: cuda

@@ -99,6 +99,9 @@ def get_data_loader_folder(input_folder, batch_size, train, new_size=None,
     loader = DataLoader(dataset=dataset, batch_size=batch_size, shuffle=train, drop_last=True, num_workers=num_workers)
     return loader
 
+def recon_criterion(input, target):
+    return torch.mean(torch.abs(input - target))
+
 
 def get_config(config):
     with open(config, 'r') as stream:

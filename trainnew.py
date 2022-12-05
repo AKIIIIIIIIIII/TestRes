@@ -2,7 +2,7 @@
 Copyright (C) 2018 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
-from utils import sample, save_checkpoint_sp,get_all_data_loaders, prepare_sub_folder, write_html, write_loss, get_config, write_2images, Timer, save_training_images, vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
+from utils import sample, recon_criterion, save_checkpoint_sp,get_all_data_loaders, prepare_sub_folder, write_html, write_loss, get_config, write_2images, Timer, save_training_images, vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 import argparse
 from torch.autograd import Variable
 from trainer_norecon import MUNIT_Trainer, UNIT_Trainer
@@ -53,7 +53,6 @@ lr = config['lr']
 gen_a = AdaINGen(config['input_dim_a'], config['gen']).to(config["DEVICE"])  # auto-encoder for domain a
 disc_surface = MsImageDis(config['input_dim_a'], config['dis']).to(config["DEVICE"])  # discriminator for surface
 disc_texture = MsImageDis(config['input_dim_b'], config['dis']).to(config["DEVICE"])  # discriminator for texture
-instancenorm = nn.InstanceNorm2d(512, affine=False)
 style_dim = config['gen']['style_dim']
 
 # fix the noise used in sampling
@@ -90,7 +89,7 @@ train_display_images_b = torch.stack([train_loader_b.dataset[i] for i in range(d
 test_display_images_a = torch.stack([test_loader_a.dataset[i] for i in range(display_size)]).to(config["DEVICE"])
 test_display_images_b = torch.stack([test_loader_b.dataset[i] for i in range(display_size)]).to(config["DEVICE"])
 
-extract_structure = SuperPixel(config["DEVICE"], mode='simple')
+extract_structure = SuperPixel(config["DEVICE"], mode='sscolor')
 extract_texture = ColorShift(config["DEVICE"], mode='uniform', image_format='rgb')
 extract_surface = GuidedFilter()
 
@@ -194,11 +193,15 @@ for epoch in range(max_iter):
         # ^ Original author used CaffeVGG model which took (0-255)BGR images as input,
         # while we used PyTorchVGG model which takes (0-1)BGB images as input. Therefore we multply the l1 with 255.
 
+        # encode again
+        c_aba, s_aba_prime = gen_a.encode(fake_cartoon)
+        # reconstruction loss
+        loss_gen_recon_c_a = config["recon_c_w"] * recon_criterion(c_aba, fake_cartoon_c)
         # Variation Loss
         tv_loss = config["LAMBDA_VARIATION"] * var_loss(output_photo)
 
         # NOTE Equation 6 in the paper
-        g_loss_total = g_loss_surface + g_loss_texture + superpixel_loss + content_loss + tv_loss
+        g_loss_total = g_loss_surface + g_loss_texture + superpixel_loss + content_loss + tv_loss + loss_gen_recon_c_a
 
         gen_opt.zero_grad()
         g_loss_total.backward()
