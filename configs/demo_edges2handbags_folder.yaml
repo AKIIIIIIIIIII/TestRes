@@ -3,16 +3,16 @@
 # The best version for cartoonization(perhaps) old
 
 # logger options
-image_save_iter: 500        # How often do you want to save output images during training
-image_display_iter: 50      # How often do you want to display output images during training
+image_save_iter: 1       # How often do you want to save output images during training
+image_display_iter: 1      # How often do you want to display output images during training
 display_size: 10               # How many images do you want to display each time
-snapshot_save_iter: 1000       # How often do you want to save trained models
+snapshot_save_iter: 1       # How often do you want to save trained models
 log_iter: 1                   # How often do you want to log the training stats
-INI: 500
+INI: 10
 
 # optimization options
 max_iter: 500000             # maximum number of training iterations
-batch_size: 16                # batch size
+batch_size: 8                # batch size
 weight_decay: 0.0001          # weight decay
 beta1: 0.5                    # Adam parameter
 beta2: 0.999                  # Adam parameter

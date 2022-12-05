@@ -50,9 +50,9 @@ shutil.copy(opts.config, os.path.join(output_directory, 'config.yaml')) # copy c
 # init
 lr = config['lr']
 # Initiate the networks
-gen_a = AdaINGen(config['input_dim_a'], config['gen'])  # auto-encoder for domain a
-disc_surface = MsImageDis(config['input_dim_a'], config['dis'])  # discriminator for surface
-disc_texture = MsImageDis(config['input_dim_b'], config['dis'])  # discriminator for texture
+gen_a = AdaINGen(config['input_dim_a'], config['gen']).to(config["DEVICE"])  # auto-encoder for domain a
+disc_surface = MsImageDis(config['input_dim_a'], config['dis']).to(config["DEVICE"])  # discriminator for surface
+disc_texture = MsImageDis(config['input_dim_b'], config['dis']).to(config["DEVICE"])  # discriminator for texture
 instancenorm = nn.InstanceNorm2d(512, affine=False)
 style_dim = config['gen']['style_dim']
 
@@ -106,9 +106,7 @@ disc_surface.apply(weights_init('gaussian'))
 ## Start training
 # iterations = resume(checkpoint_directory, hyperparameters=config) if opts.resume else 0
 
-gen_a.to(config["DEVICE"])
 if config["INI"]:
-    it = 0
     for epoch in range(config["INI"]):
         loop = tqdm(train_loader_a, leave=True)
         losses = []
@@ -134,7 +132,7 @@ if config["INI"]:
 
         save_training_images(torch.cat((sample_photo * 0.5 + 0.5, reconstructed * 0.5 + 0.5), axis=3),
                              epoch=epoch, step=0, dest_folder=output_directory, suffix_filename="initial_io")
-step = 0
+
 
 for epoch in range(max_iter):
     loop = tqdm(zip(train_loader_a, train_loader_b), leave=True)
@@ -143,28 +141,20 @@ for epoch in range(max_iter):
     for idx, (sample_photo, sample_cartoon) in enumerate(loop):
         sample_photo = sample_photo.to(config["DEVICE"])
         sample_cartoon = sample_cartoon.to(config["DEVICE"])
-
         # Train Discriminator
         fake_cartoon_c, fake_cartoon_s = gen_a.encode(sample_photo)
+        s_a = Variable(torch.randn(sample_cartoon.size(0), style_dim, 1, 1).cuda())
         fake_cartoon = gen_a.decode(fake_cartoon_c, s_a)
         output_photo = extract_surface.process(sample_photo, fake_cartoon, r=1)
 
         # Surface Representation
         blur_fake = extract_surface.process(output_photo, output_photo, r=5, eps=2e-1)
         blur_cartoon = extract_surface.process(sample_cartoon, sample_cartoon, r=5, eps=2e-1)
-        D_blur_real = disc_surface(blur_cartoon)
-        D_blur_fake = disc_surface(blur_fake.detach())
-        d_loss_surface_real = MSE_Loss(D_blur_real, torch.ones_like(D_blur_real))
-        d_loss_surface_fake = MSE_Loss(D_blur_fake, torch.zeros_like(D_blur_fake))
-        d_loss_surface = (d_loss_surface_real + d_loss_surface_fake) / 2.0
+        d_loss_surface = disc_surface.calc_dis_loss(blur_fake.detach(), blur_cartoon)
 
         # Textural Representation
         gray_fake, gray_cartoon = extract_texture.process(output_photo, sample_cartoon)
-        D_gray_real = disc_texture(gray_cartoon)
-        D_gray_fake = disc_texture(gray_fake.detach())
-        d_loss_texture_real = MSE_Loss(D_gray_real, torch.ones_like(D_gray_real))
-        d_loss_texture_fake = MSE_Loss(D_gray_fake, torch.zeros_like(D_gray_fake))
-        d_loss_texture = (d_loss_texture_real + d_loss_texture_fake) / 2.0
+        d_loss_texture = disc_texture.calc_dis_loss(gray_fake.detach(), gray_cartoon)
 
         d_loss_total = d_loss_surface + d_loss_texture
 
@@ -176,18 +166,17 @@ for epoch in range(max_iter):
 
         # Train Generator
         fake_cartoon_c, fake_cartoon_s = gen_a.encode(sample_photo)
+        s_a = Variable(torch.randn(sample_cartoon.size(0), style_dim, 1, 1).cuda())
         fake_cartoon = gen_a.decode(fake_cartoon_c, s_a)
         output_photo = extract_surface.process(sample_photo, fake_cartoon, r=1)
 
         # Guided Filter
         blur_fake = extract_surface.process(output_photo, output_photo, r=5, eps=2e-1)
-        D_blur_fake = disc_surface(blur_fake)
-        g_loss_surface = config["LAMBDA_SURFACE"] * MSE_Loss(D_blur_fake, torch.ones_like(D_blur_fake))
+        g_loss_surface = config["LAMBDA_SURFACE"] * disc_surface.calc_gen_loss(blur_fake)
 
         # Color Shift
         gray_fake, = extract_texture.process(output_photo)
-        D_gray_fake = disc_texture(gray_fake)
-        g_loss_texture = config["LAMBDA_TEXTURE"] * MSE_Loss(D_gray_fake, torch.ones_like(D_gray_fake))
+        g_loss_texture = config["LAMBDA_TEXTURE"] * disc_texture.calc_gen_loss(gray_fake)
 
         # SuperPixel
         input_superpixel = extract_structure.process(output_photo.detach())
@@ -216,44 +205,42 @@ for epoch in range(max_iter):
 
         # ===============================================================================
 
-        train_writer.add_scalar('D_loss_surface', d_loss_surface.data.cpu().numpy(), global_step=step)
-        train_writer.add_scalar("D_loss_texture", d_loss_texture.data.cpu().numpy(), global_step=step)
-        train_writer.add_scalar('G_loss_surface', g_loss_surface.data.cpu().numpy(), global_step=step)
-        train_writer.add_scalar("G_loss_texture", g_loss_texture.data.cpu().numpy(), global_step=step)
-        train_writer.add_scalar('G_loss_superpixel', superpixel_loss.data.cpu().numpy(), global_step=step)
-        train_writer.add_scalar('G_loss_content', content_loss.data.cpu().numpy(), global_step=step)
-        train_writer.add_scalar('G_loss_tv', tv_loss.data.cpu().numpy(), global_step=step)
+        train_writer.add_scalar('D_loss_surface', d_loss_surface.data.cpu().numpy(), global_step=epoch)
+        train_writer.add_scalar("D_loss_texture", d_loss_texture.data.cpu().numpy(), global_step=epoch)
+        train_writer.add_scalar('G_loss_surface', g_loss_surface.data.cpu().numpy(), global_step=epoch)
+        train_writer.add_scalar("G_loss_texture", g_loss_texture.data.cpu().numpy(), global_step=epoch)
+        train_writer.add_scalar('G_loss_superpixel', superpixel_loss.data.cpu().numpy(), global_step=epoch)
+        train_writer.add_scalar('G_loss_content', content_loss.data.cpu().numpy(), global_step=epoch)
+        train_writer.add_scalar('G_loss_tv', tv_loss.data.cpu().numpy(), global_step=epoch)
 
-        if step % config["image_save_iter"] == 0:
+        if (epoch+1) % config["image_save_iter"] == 0:
             save_training_images(
                 torch.cat((blur_fake * 0.5 + 0.5, gray_fake * 0.5 + 0.5, input_superpixel * 0.5 + 0.5), axis=3),
-                epoch=epoch, step=step, dest_folder=output_directory, suffix_filename="photo_rep")
+                epoch=epoch, step=epoch, dest_folder=output_directory, suffix_filename="photo_rep")
 
             save_training_images(
                 torch.cat((sample_photo * 0.5 + 0.5, fake_cartoon * 0.5 + 0.5, output_photo * 0.5 + 0.5), axis=3),
-                epoch=epoch, step=step, dest_folder=output_directory, suffix_filename="io")
+                epoch=epoch, step=epoch, dest_folder=output_directory, suffix_filename="io")
 
             print(
-                '[Epoch: %d| Step: %d] - D Surface loss: %.12f' % ((epoch + 1), (step + 1), d_loss_surface.item()))
+                '[Epoch: %d] - D Surface loss: %.12f' % ((epoch + 1), d_loss_surface.item()))
             print(
-                '[Epoch: %d| Step: %d] - D Texture loss: %.12f' % ((epoch + 1), (step + 1), d_loss_texture.item()))
+                '[Epoch: %d] - D Texture loss: %.12f' % ((epoch + 1), d_loss_texture.item()))
 
             print(
-                '[Epoch: %d| Step: %d] - G Surface loss: %.12f' % ((epoch + 1), (step + 1), g_loss_surface.item()))
+                '[Epoch: %d] - G Surface loss: %.12f' % ((epoch + 1), g_loss_surface.item()))
             print(
-                '[Epoch: %d| Step: %d] - G Texture loss: %.12f' % ((epoch + 1), (step + 1), g_loss_texture.item()))
-            print('[Epoch: %d| Step: %d] - G Structure loss: %.12f' % ((epoch + 1), (step + 1), superpixel_loss.item()))
-            print('[Epoch: %d| Step: %d] - G Content loss: %.12f' % ((epoch + 1), (step + 1), content_loss.item()))
-            print('[Epoch: %d| Step: %d] - G Variation loss: %.12f' % ((epoch + 1), (step + 1), tv_loss.item()))
+                '[Epoch: %d] - G Texture loss: %.12f' % ((epoch + 1), g_loss_texture.item()))
+            print('[Epoch: %d] - G Structure loss: %.12f' % ((epoch + 1), superpixel_loss.item()))
+            print('[Epoch: %d] - G Content loss: %.12f' % ((epoch + 1), content_loss.item()))
+            print('[Epoch: %d] - G Variation loss: %.12f' % ((epoch + 1), tv_loss.item()))
 
-        step += 1
+        loop.set_postfix(epoch=epoch + 1)
 
-        loop.set_postfix(step=step, epoch=epoch + 1)
-
-    if step % config['snapshot_save_iter'] == 0:
+    if (epoch+1) % config['snapshot_save_iter'] == 0:
         save_checkpoint_sp(disc_texture,disc_surface,gen_a,dis_opt,gen_opt,epoch,checkpoint_directory)
 
-    if step % config['image_display_iter'] == 0:
+    if (epoch+1) % config['image_display_iter'] == 0:
         with torch.no_grad():
             image_outputs = sample(train_display_images_a, train_display_images_b)
         write_2images(image_outputs, display_size, image_directory, 'train_current')
