@@ -105,7 +105,7 @@ disc_surface.apply(weights_init('gaussian'))
 
 ## Start training
 # iterations = resume(checkpoint_directory, hyperparameters=config) if opts.resume else 0
-
+it=0
 if config["INI"]:
     for epoch in range(config["INI"]):
         loop = tqdm(train_loader_a, leave=True)
@@ -126,14 +126,15 @@ if config["INI"]:
 
             reconstruction_loss.backward()
             gen_opt.step()
+            train_writer.add_scalar('G_loss_INI', reconstruction_loss.data.cpu().numpy(), global_step=it)
+            it = it+1
             loop.set_postfix(epoch=epoch)
 
         print('[%d/%d] - Recon loss: %.8f' % ((epoch + 1), config["INI"], torch.mean(torch.FloatTensor(losses))))
-
         save_training_images(torch.cat((sample_photo * 0.5 + 0.5, reconstructed * 0.5 + 0.5), axis=3),
                              epoch=epoch, step=0, dest_folder=output_directory, suffix_filename="initial_io")
 
-
+step = 0
 for epoch in range(max_iter):
     loop = tqdm(zip(train_loader_a, train_loader_b), leave=True)
 
@@ -205,44 +206,42 @@ for epoch in range(max_iter):
 
         # ===============================================================================
 
-        train_writer.add_scalar('D_loss_surface', d_loss_surface.data.cpu().numpy(), global_step=epoch)
-        train_writer.add_scalar("D_loss_texture", d_loss_texture.data.cpu().numpy(), global_step=epoch)
-        train_writer.add_scalar('G_loss_surface', g_loss_surface.data.cpu().numpy(), global_step=epoch)
-        train_writer.add_scalar("G_loss_texture", g_loss_texture.data.cpu().numpy(), global_step=epoch)
-        train_writer.add_scalar('G_loss_superpixel', superpixel_loss.data.cpu().numpy(), global_step=epoch)
-        train_writer.add_scalar('G_loss_content', content_loss.data.cpu().numpy(), global_step=epoch)
-        train_writer.add_scalar('G_loss_tv', tv_loss.data.cpu().numpy(), global_step=epoch)
+        train_writer.add_scalar('D_loss_surface', d_loss_surface.data.cpu().numpy(), global_step=step)
+        train_writer.add_scalar("D_loss_texture", d_loss_texture.data.cpu().numpy(), global_step=step)
+        train_writer.add_scalar('G_loss_surface', g_loss_surface.data.cpu().numpy(), global_step=step)
+        train_writer.add_scalar("G_loss_texture", g_loss_texture.data.cpu().numpy(), global_step=step)
+        train_writer.add_scalar('G_loss_superpixel', superpixel_loss.data.cpu().numpy(), global_step=step)
+        train_writer.add_scalar('G_loss_content', content_loss.data.cpu().numpy(), global_step=step)
+        train_writer.add_scalar('G_loss_tv', tv_loss.data.cpu().numpy(), global_step=step)
 
-        if (epoch+1) % config["image_save_iter"] == 0:
+        if (step+1) % config["image_save_iter"] == 0:
             save_training_images(
                 torch.cat((blur_fake * 0.5 + 0.5, gray_fake * 0.5 + 0.5, input_superpixel * 0.5 + 0.5), axis=3),
-                epoch=epoch, step=epoch, dest_folder=output_directory, suffix_filename="photo_rep")
+                epoch=epoch, step=step, dest_folder=output_directory, suffix_filename="photo_rep")
 
             save_training_images(
                 torch.cat((sample_photo * 0.5 + 0.5, fake_cartoon * 0.5 + 0.5, output_photo * 0.5 + 0.5), axis=3),
-                epoch=epoch, step=epoch, dest_folder=output_directory, suffix_filename="io")
+                epoch=epoch, step=step, dest_folder=output_directory, suffix_filename="io")
 
-            print(
-                '[Epoch: %d] - D Surface loss: %.12f' % ((epoch + 1), d_loss_surface.item()))
-            print(
-                '[Epoch: %d] - D Texture loss: %.12f' % ((epoch + 1), d_loss_texture.item()))
 
-            print(
-                '[Epoch: %d] - G Surface loss: %.12f' % ((epoch + 1), g_loss_surface.item()))
-            print(
-                '[Epoch: %d] - G Texture loss: %.12f' % ((epoch + 1), g_loss_texture.item()))
-            print('[Epoch: %d] - G Structure loss: %.12f' % ((epoch + 1), superpixel_loss.item()))
-            print('[Epoch: %d] - G Content loss: %.12f' % ((epoch + 1), content_loss.item()))
-            print('[Epoch: %d] - G Variation loss: %.12f' % ((epoch + 1), tv_loss.item()))
+            print('[Epoch: %d| Step: %d] - D Surface loss: %.12f' % ((epoch + 1), (step+1), d_loss_surface.item()))
+            print('[Epoch: %d| Step: %d] - D Texture loss: %.12f' % ((epoch + 1), (step+1), d_loss_texture.item()))
 
-        loop.set_postfix(epoch=epoch + 1)
+            print('[Epoch: %d| Step: %d] - G Surface loss: %.12f' % ((epoch + 1), (step+1), g_loss_surface.item()))
+            print('[Epoch: %d| Step: %d] - G Texture loss: %.12f' % ((epoch + 1), (step+1), g_loss_texture.item()))
+            print('[Epoch: %d| Step: %d] - G Structure loss: %.12f' % ((epoch + 1), (step+1), superpixel_loss.item()))
+            print('[Epoch: %d| Step: %d] - G Content loss: %.12f' % ((epoch + 1), (step+1), content_loss.item()))
+            print('[Epoch: %d| Step: %d] - G Variation loss: %.12f' % ((epoch + 1), (step+1), tv_loss.item()))
+
+        step += 1
+        loop.set_postfix(step=step, epoch=epoch + 1)
 
     if (epoch+1) % config['snapshot_save_iter'] == 0:
         save_checkpoint_sp(disc_texture,disc_surface,gen_a,dis_opt,gen_opt,epoch,checkpoint_directory)
 
     if (epoch+1) % config['image_display_iter'] == 0:
         with torch.no_grad():
-            image_outputs = sample(train_display_images_a, train_display_images_b)
+            image_outputs = sample(train_display_images_a, train_display_images_b, gen_a)
         write_2images(image_outputs, display_size, image_directory, 'train_current')
 
 if config.SAVE_MODEL:
