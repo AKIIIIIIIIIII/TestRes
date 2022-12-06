@@ -6,7 +6,7 @@
 image_save_iter: 1000       # How often do you want to save output images during training
 image_display_iter: 1      # How often do you want to display output images during training
 display_size: 5               # How many images do you want to display each time
-snapshot_save_iter: 10       # How often do you want to save trained models
+snapshot_save_iter: 5       # How often do you want to save trained models
 log_iter: 1                   # How often do you want to log the training stats
 INI: 3
 
@@ -24,7 +24,7 @@ gamma: 0.5                    # how much to decay learning rate
 D_sur: 1                      # weight of adversarial loss
 D_text: 1
 recon_x_w: 100                 # weight of image reconstruction loss
-recon_s_w: 0                  # weight of style reconstruction loss
+recon_s_w: 10                  # weight of style reconstruction loss
 recon_c_w: 30                  # weight of content reconstruction loss
 recon_x_cyc_w: 0              # weight of explicit style augmented cycle consistency loss
 tv_w: 10000
@@ -64,5 +64,5 @@ LAMBDA_SURFACE: 0.1
 LAMBDA_TEXTURE: 1
 LAMBDA_STRUCTURE: 200
 LAMBDA_CONTENT: 180
-LAMBDA_VARIATION: 100000
+LAMBDA_VARIATION: 10000
 DEVICE: cuda

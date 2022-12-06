@@ -89,7 +89,7 @@ train_display_images_b = torch.stack([train_loader_b.dataset[i] for i in range(d
 test_display_images_a = torch.stack([test_loader_a.dataset[i] for i in range(display_size)]).to(config["DEVICE"])
 test_display_images_b = torch.stack([test_loader_b.dataset[i] for i in range(display_size)]).to(config["DEVICE"])
 
-extract_structure = SuperPixel(config["DEVICE"], mode='sscolor')
+extract_structure = SuperPixel(config["DEVICE"], mode='simple')
 extract_texture = ColorShift(config["DEVICE"], mode='uniform', image_format='rgb')
 extract_surface = GuidedFilter()
 
@@ -167,7 +167,8 @@ for epoch in range(max_iter):
         # Train Generator
         fake_cartoon_c, fake_cartoon_s = gen_a.encode(sample_photo)
         s_a = Variable(torch.randn(sample_cartoon.size(0), style_dim, 1, 1).cuda())
-        fake_cartoon = gen_a.decode(fake_cartoon_c, s_a)
+        recon = gen_a.decode(fake_cartoon_c, fake_cartoon_s)
+        _, s_cartoon = gen_a.encode(sample_cartoon)
         output_photo = extract_surface.process(sample_photo, fake_cartoon, r=1)
 
         # Guided Filter
@@ -197,11 +198,14 @@ for epoch in range(max_iter):
         c_aba, s_aba_prime = gen_a.encode(fake_cartoon)
         # reconstruction loss
         loss_gen_recon_c_a = config["recon_c_w"] * recon_criterion(c_aba, fake_cartoon_c)
+        loss_gen_recon_x_a = config["recon_x_w"] * recon_criterion(recon, sample_photo)
+        loss_gen_recon_s_a = config["recon_s_w"] * recon_criterion(s_aba_prime, fake_cartoon_s)
+
         # Variation Loss
         tv_loss = config["LAMBDA_VARIATION"] * var_loss(output_photo)
 
         # NOTE Equation 6 in the paper
-        g_loss_total = g_loss_surface + g_loss_texture + superpixel_loss + content_loss + tv_loss + loss_gen_recon_c_a
+        g_loss_total = g_loss_surface + g_loss_texture + superpixel_loss + content_loss + tv_loss + loss_gen_recon_c_a + loss_gen_recon_x_a + loss_gen_recon_s_a
 
         gen_opt.zero_grad()
         g_loss_total.backward()
@@ -215,6 +219,9 @@ for epoch in range(max_iter):
         train_writer.add_scalar("G_loss_texture", g_loss_texture.data.cpu().numpy(), global_step=step)
         train_writer.add_scalar('G_loss_superpixel', superpixel_loss.data.cpu().numpy(), global_step=step)
         train_writer.add_scalar('G_loss_content', content_loss.data.cpu().numpy(), global_step=step)
+        train_writer.add_scalar('G_loss_recon_ca', loss_gen_recon_c_a.data.cpu().numpy(), global_step=step)
+        train_writer.add_scalar('G_loss_recon_xa', loss_gen_recon_x_a.cpu().numpy(), global_step=step)
+        train_writer.add_scalar('G_loss_recon_sa', loss_gen_recon_s_a.cpu().numpy(), global_step=step)
         train_writer.add_scalar('G_loss_tv', tv_loss.data.cpu().numpy(), global_step=step)
 
         if (step+1) % config["image_save_iter"] == 0:
@@ -225,16 +232,6 @@ for epoch in range(max_iter):
             save_training_images(
                 torch.cat((sample_photo * 0.5 + 0.5, fake_cartoon * 0.5 + 0.5, output_photo * 0.5 + 0.5), axis=3),
                 epoch=epoch, step=step, dest_folder=output_directory, suffix_filename="io")
-
-
-            print('[Epoch: %d| Step: %d] - D Surface loss: %.12f' % ((epoch + 1), (step+1), d_loss_surface.item()))
-            print('[Epoch: %d| Step: %d] - D Texture loss: %.12f' % ((epoch + 1), (step+1), d_loss_texture.item()))
-
-            print('[Epoch: %d| Step: %d] - G Surface loss: %.12f' % ((epoch + 1), (step+1), g_loss_surface.item()))
-            print('[Epoch: %d| Step: %d] - G Texture loss: %.12f' % ((epoch + 1), (step+1), g_loss_texture.item()))
-            print('[Epoch: %d| Step: %d] - G Structure loss: %.12f' % ((epoch + 1), (step+1), superpixel_loss.item()))
-            print('[Epoch: %d| Step: %d] - G Content loss: %.12f' % ((epoch + 1), (step+1), content_loss.item()))
-            print('[Epoch: %d| Step: %d] - G Variation loss: %.12f' % ((epoch + 1), (step+1), tv_loss.item()))
 
         step += 1
         loop.set_postfix(step=step, epoch=epoch + 1)
