@@ -2,7 +2,7 @@
 Copyright (C) 2018 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
-from utils import sample, recon_criterion, save_checkpoint_sp,get_all_data_loaders, prepare_sub_folder, write_html, write_loss, get_config, write_2images, Timer, save_training_images, vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
+from utils import resume, sample, recon_criterion, save_checkpoint_sp,get_all_data_loaders, prepare_sub_folder, get_config, write_2images, save_training_images, weights_init, get_model_list, get_scheduler
 import argparse
 from torch.autograd import Variable
 from trainer_norecon import MUNIT_Trainer, UNIT_Trainer
@@ -74,10 +74,6 @@ gen_scheduler = get_scheduler(gen_opt, config)
 
 # Load VGG model if needed
 if 'vgg_w' in config.keys() and config['vgg_w'] > 0:
-#    vgg = load_vgg16(config['vgg_model_path'] + '/models')
-#    vgg.eval()
-#    for param in vgg.parameters():
-#        param.requires_grad = False
     VGG19 = VGGNet(in_channels=3, VGGtype="VGG19", init_weights="vgg19-dcbb9e9d.pth", batch_norm=False, feature_mode=True)
     VGG19 = VGG19.to(config["DEVICE"])
     VGG19.eval()
@@ -94,17 +90,15 @@ extract_texture = ColorShift(config["DEVICE"], mode='uniform', image_format='rgb
 extract_surface = GuidedFilter()
 
 L1_Loss = nn.L1Loss()
-MSE_Loss = nn.MSELoss()  # went through the author's code and found him using LSGAN, LSGAN should gives better training
 var_loss = VariationLoss(1)
-
 
 gen_a.apply(weights_init(config['init']))
 disc_texture.apply(weights_init('gaussian'))
 disc_surface.apply(weights_init('gaussian'))
 
-## Start training
-# iterations = resume(checkpoint_directory, hyperparameters=config) if opts.resume else 0
-it=0
+# Start training
+
+it = 0
 if config["INI"]:
     for epoch in range(config["INI"]):
         loop = tqdm(train_loader_a, leave=True)
@@ -133,8 +127,9 @@ if config["INI"]:
         save_training_images(torch.cat((sample_photo * 0.5 + 0.5, reconstructed * 0.5 + 0.5), axis=3),
                              epoch=epoch, step=0, dest_folder=output_directory, suffix_filename="initial_io")
 
+it = resume(checkpoint_directory, config, disc_texture, disc_surface, gen_a, dis_opt, gen_opt, dis_scheduler, gen_scheduler) if opts.resume else 0
 step = 0
-for epoch in range(max_iter):
+for epoch in range(it, max_iter):
     loop = tqdm(zip(train_loader_a, train_loader_b), leave=True)
 
     # Training
@@ -199,7 +194,7 @@ for epoch in range(max_iter):
         # reconstruction loss
         loss_gen_recon_c_a = config["recon_c_w"] * recon_criterion(c_aba, fake_cartoon_c)
         loss_gen_recon_x_a = config["recon_x_w"] * recon_criterion(recon, sample_photo)
-        loss_gen_recon_s_a = config["recon_s_w"] * recon_criterion(s_aba_prime, fake_cartoon_s)
+        loss_gen_recon_s_a = config["recon_s_w"] * recon_criterion(s_aba_prime, s_cartoon)
 
         # Variation Loss
         tv_loss = config["LAMBDA_VARIATION"] * var_loss(output_photo)
@@ -220,8 +215,8 @@ for epoch in range(max_iter):
         train_writer.add_scalar('G_loss_superpixel', superpixel_loss.data.cpu().numpy(), global_step=step)
         train_writer.add_scalar('G_loss_content', content_loss.data.cpu().numpy(), global_step=step)
         train_writer.add_scalar('G_loss_recon_ca', loss_gen_recon_c_a.data.cpu().numpy(), global_step=step)
-        train_writer.add_scalar('G_loss_recon_xa', loss_gen_recon_x_a.cpu().numpy(), global_step=step)
-        train_writer.add_scalar('G_loss_recon_sa', loss_gen_recon_s_a.cpu().numpy(), global_step=step)
+        train_writer.add_scalar('G_loss_recon_xa', loss_gen_recon_x_a.data.cpu().numpy(), global_step=step)
+        train_writer.add_scalar('G_loss_recon_sa', loss_gen_recon_s_a.data.cpu().numpy(), global_step=step)
         train_writer.add_scalar('G_loss_tv', tv_loss.data.cpu().numpy(), global_step=step)
 
         if (step+1) % config["image_save_iter"] == 0:

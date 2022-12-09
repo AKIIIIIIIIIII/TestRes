@@ -220,15 +220,6 @@ def sample(x_a, x_b, gen_a, style_dim = 8):
     gen_a.train()
     return x_a, x_a_recon, x_ab1, x_ab2
 
-def save_checkpoint_sp(Dt, Ds, G, Dop, Gop,epoch, snapshot_dir, latest = ""):
-    # Save generators, discriminators, and optimizers
-    G_name = os.path.join(snapshot_dir, latest + 'gen_%08d.pt' % (epoch + 1))
-    D_name = os.path.join(snapshot_dir, latest + 'D_%08d.pt' % (epoch + 1))
-    opt_name = os.path.join(snapshot_dir, latest + 'optimizer.pt')
-    torch.save({'a': G.state_dict()}, G_name)
-    torch.save({'a': Ds.state_dict(), 'b': Dt.state_dict()}, D_name)
-    torch.save({'gen': Gop.state_dict(), 'dis': Dop.state_dict()}, opt_name)
-
 def get_slerp_interp(nb_latents, nb_interp, z_dim):
     """
     modified from: PyTorch inference for "Progressive Growing of GANs" with CelebA snapshot
@@ -245,20 +236,6 @@ def get_slerp_interp(nb_latents, nb_interp, z_dim):
         latent_interps = np.vstack((latent_interps, latent_interp))
 
     return latent_interps[:, :, np.newaxis, np.newaxis]
-
-
-# Get model list for resume
-def get_model_list(dirname, key):
-    if os.path.exists(dirname) is False:
-        return None
-    gen_models = [os.path.join(dirname, f) for f in os.listdir(dirname) if
-                  os.path.isfile(os.path.join(dirname, f)) and key in f and ".pt" in f]
-    if gen_models is None:
-        return None
-    gen_models.sort()
-    last_model_name = gen_models[-1]
-    return last_model_name
-
 
 def load_vgg16(model_dir):
     """ Use the model from https://github.com/abhiskk/fast-neural-style/blob/master/neural_style/utils.py """
@@ -325,25 +302,51 @@ def vgg_preprocess_color(batch):
     batch = batch.sub(Variable(mean)) # subtract mean
     return batch
 
-def resume(self, checkpoint_dir, hyperparameters):
+def resume(checkpoint_dir, hyperparameters, Dt, Ds, G, Dop, Gop, dis_scheduler, gen_scheduler):
     # Load generators
     last_model_name = get_model_list(checkpoint_dir, "gen")
     state_dict = torch.load(last_model_name)
-    self.gen_a.load_state_dict(state_dict['a'])
+    G.load_state_dict(state_dict['a'])
     iterations = int(last_model_name[-11:-3])
     # Load discriminators
-    last_model_name = get_model_list(checkpoint_dir, "dis")
+    last_model_name = get_model_list(checkpoint_dir, "D")
     state_dict = torch.load(last_model_name)
-    self.dis_a.load_state_dict(state_dict['a'])
+    Ds.load_state_dict(state_dict['a'])
+    Dt.load_state_dict(state_dict['b'])
     # Load optimizers
     state_dict = torch.load(os.path.join(checkpoint_dir, 'optimizer.pt'))
-    self.dis_opt.load_state_dict(state_dict['dis'])
-    self.gen_opt.load_state_dict(state_dict['gen'])
+    Dop.load_state_dict(state_dict['dis'])
+    Gop.load_state_dict(state_dict['gen'])
     # Reinitilize schedulers
-    self.dis_scheduler = get_scheduler(self.dis_opt, hyperparameters, iterations)
-    self.gen_scheduler = get_scheduler(self.gen_opt, hyperparameters, iterations)
+    dis_scheduler = get_scheduler(Dop, hyperparameters, iterations)
+    gen_scheduler = get_scheduler(Gop, hyperparameters, iterations)
+
     print('Resume from iteration %d' % iterations)
     return iterations
+
+
+# Get model list for resume
+def get_model_list(dirname, key):
+    if os.path.exists(dirname) is False:
+        return None
+    gen_models = [os.path.join(dirname, f) for f in os.listdir(dirname) if
+                  os.path.isfile(os.path.join(dirname, f)) and key in f and ".pt" in f]
+    if gen_models is None:
+        return None
+    gen_models.sort()
+    last_model_name = gen_models[-1]
+    return last_model_name
+
+
+def save_checkpoint_sp(Dt, Ds, G, Dop, Gop,epoch, snapshot_dir, latest = ""):
+    # Save generators, discriminators, and optimizers
+    G_name = os.path.join(snapshot_dir, latest + 'gen_%08d.pt' % (epoch + 1))
+    D_name = os.path.join(snapshot_dir, latest + 'D_%08d.pt' % (epoch + 1))
+    opt_name = os.path.join(snapshot_dir, latest + 'optimizer.pt')
+    torch.save({'a': G.state_dict()}, G_name)
+    torch.save({'a': Ds.state_dict(), 'b': Dt.state_dict()}, D_name)
+    torch.save({'gen': Gop.state_dict(), 'dis': Dop.state_dict()}, opt_name)
+
 
 def get_scheduler(optimizer, hyperparameters, iterations=-1):
     if 'lr_policy' not in hyperparameters or hyperparameters['lr_policy'] == 'constant':
