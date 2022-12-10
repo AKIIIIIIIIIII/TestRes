@@ -194,7 +194,7 @@ for epoch in range(it, max_iter):
         # reconstruction loss
         loss_gen_recon_c_a = config["recon_c_w"] * recon_criterion(c_aba, fake_cartoon_c)
         loss_gen_recon_x_a = config["recon_x_w"] * recon_criterion(recon, sample_photo)
-        loss_gen_recon_s_a = config["recon_s_w"] * recon_criterion(s_aba_prime, s_cartoon)
+        loss_gen_recon_s_a = config["recon_s_w"] * recon_criterion(s_aba_prime, fake_cartoon_s)
 
         # Variation Loss
         tv_loss = config["LAMBDA_VARIATION"] * var_loss(output_photo)
