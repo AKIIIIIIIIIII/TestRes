@@ -85,7 +85,7 @@ train_display_images_b = torch.stack([train_loader_b.dataset[i] for i in range(d
 test_display_images_a = torch.stack([test_loader_a.dataset[i] for i in range(display_size)]).to(config["DEVICE"])
 test_display_images_b = torch.stack([test_loader_b.dataset[i] for i in range(display_size)]).to(config["DEVICE"])
 
-extract_structure = SuperPixel(config["DEVICE"], mode='simple')
+extract_structure = SuperPixel(config["DEVICE"], mode='sscolor')
 extract_texture = ColorShift(config["DEVICE"], mode='uniform', image_format='rgb')
 extract_surface = GuidedFilter()
 
