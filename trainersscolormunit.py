@@ -2,7 +2,7 @@
 Copyright (C) 2017 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
-from networks import AdaINGen, MsImageDis, VAEGen
+from networksold import AdaINGen, MsImageDis, VAEGen
 from utils import vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
 from VGGPytorch import VGGNet
@@ -56,10 +56,10 @@ class MUNIT_Trainer(nn.Module):
 
         # Load VGG model if needed
         if 'vgg_w' in hyperparameters.keys() and hyperparameters['vgg_w'] > 0:
-            VGG19 = VGGNet(in_channels=3, VGGtype="VGG19", init_weights="vgg19-dcbb9e9d.pth", batch_norm=False,
+            self.VGG19 = VGGNet(in_channels=3, VGGtype="VGG19", init_weights="vgg19-dcbb9e9d.pth", batch_norm=False,
                            feature_mode=True)
-            VGG19 = VGG19.cuda()
-            VGG19.eval()
+            self.VGG19 = self.VGG19.cuda()
+            self.VGG19.eval()
 
 
     def recon_criterion(self, input, target):
@@ -114,14 +114,22 @@ class MUNIT_Trainer(nn.Module):
 
         # structure loss
         input_superpixel = self.extract_structure.process(output_photo_xab.detach())
-        vgg_output = self.VGG19(output_photo_xab)
-        _, c, h, w = vgg_output.shape
-        vgg_superpixel = self.VGG19(input_superpixel)
-        superpixel_loss = hyperparameters["LAMBDA_STRUCTURE"] * self.L1_Loss(vgg_superpixel, vgg_output) * 255 / (c * h * w)
+        self.vgg_superpixel, self.vgg_output= self.compute_vgg_L1loss(self.VGG19, output_photo_xab, input_superpixel)
+        _, c, h, w = self.vgg_output.shape
+        self.superpixel_loss = hyperparameters["LAMBDA_STRUCTURE"] * self.L1_Loss(self.vgg_superpixel, self.vgg_output) * 255 / (c * h * w)
 
         # domain-invariant perceptual loss
-        self.loss_gen_vgg_a = self.L1_Loss(self.VGG19(output_photo_xba), self.VGG19(x_b)) * 255 / (c * h * w) if hyperparameters['vgg_w'] > 0 else 0
-        self.loss_gen_vgg_b = self.L1_Loss(self.VGG19(output_photo_xab), self.VGG19(x_a)) * 255 / (c * h * w) if hyperparameters['vgg_w'] > 0 else 0
+        if hyperparameters['vgg_w'] > 0:
+
+            self.xba, self.x_b = self.compute_vgg_L1loss(self.VGG19, output_photo_xba, x_b)
+            _, c, h, w = self.x_b.shape
+            self.loss_gen_vgg_a = self.L1_Loss(self.xba, self.x_b) * 255 / (c * h * w)
+            self.xab, self.x_a = self.compute_vgg_L1loss(self.VGG19, output_photo_xab, x_a)
+            _, c, h, w = self.x_a.shape
+            self.loss_gen_vgg_b = self.L1_Loss(self.output_photo_xab, self.x_a) * 255 / (c * h * w)
+        else:
+            self.loss_gen_vgg_a = 0
+            self.loss_gen_vgg_b = 0
 
         # total loss
         self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + \
@@ -134,12 +142,16 @@ class MUNIT_Trainer(nn.Module):
                               hyperparameters['recon_c_w'] * self.loss_gen_recon_c_b + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_a + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_b + \
-                              hyperparameters['LAMBDA_STRUCTURE'] * superpixel_loss + \
+                              hyperparameters['LAMBDA_STRUCTURE'] * self.superpixel_loss + \
                               hyperparameters['vgg_w'] * self.loss_gen_vgg_a + \
                               hyperparameters['vgg_w'] * self.loss_gen_vgg_b
         self.loss_gen_total.backward()
         self.gen_opt.step()
 
+    def compute_vgg_L1loss(self, vgg, img, target):
+        img_fea = vgg(img)
+        target_fea = vgg(target)
+        return img_fea, target_fea
     def compute_vgg_loss(self, vgg, img, target):
         img_vgg = vgg_preprocess_color(img)
         img_fea = vgg(img_vgg)
