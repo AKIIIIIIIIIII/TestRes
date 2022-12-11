@@ -3,10 +3,10 @@
 # The best version for cartoonization(perhaps) old
 
 # logger options
-image_save_iter: 1000         # How often do you want to save output images during training
-image_display_iter: 1000       # How often do you want to display output images during training
+image_save_iter: 100         # How often do you want to save output images during training
+image_display_iter: 100       # How often do you want to display output images during training
 display_size: 10               # How many images do you want to display each time
-snapshot_save_iter: 5000       # How often do you want to save trained models
+snapshot_save_iter: 500       # How often do you want to save trained models
 log_iter: 1                   # How often do you want to log the training stats
 
 # optimization options
@@ -25,7 +25,7 @@ recon_x_w: 10                 # weight of image reconstruction loss
 recon_s_w: 1.5                  # weight of style reconstruction loss
 recon_c_w: 1.2                  # weight of content reconstruction loss
 recon_x_cyc_w: 10              # weight of explicit style augmented cycle consistency loss
-vgg_w: 0                      # weight of domain-invariant perceptual loss
+vgg_w: 0.5                      # weight of domain-invariant perceptual loss
 
 # model options
 gen:

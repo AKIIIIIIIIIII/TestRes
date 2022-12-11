@@ -5,7 +5,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 from utils import get_all_data_loaders, prepare_sub_folder, write_html, write_loss, get_config, write_2images, Timer, save_training_images_sf
 import argparse
 from torch.autograd import Variable
-from trainer_norecon import MUNIT_Trainer, UNIT_Trainer
+from trainersscolormunit import MUNIT_Trainer, UNIT_Trainer
 import torch.backends.cudnn as cudnn
 import torch
 try:
@@ -95,12 +95,10 @@ while True:
         # Write images
         if (iterations + 1) % config['image_save_iter'] == 0:
             with torch.no_grad():
-                test_image_outputs = trainer.sample(test_display_images_a, test_display_images_b)
-                train_image_outputs = trainer.sample(train_display_images_a, train_display_images_b)
+                test_image_outputs = trainer.sample(test_display_images_a, test_display_images_b, iterations, image_directory)
+                train_image_outputs = trainer.sample(train_display_images_a, train_display_images_b, iterations, image_directory)
             write_2images(test_image_outputs[:-1], display_size, image_directory, 'test_%08d' % (iterations + 1))
             write_2images(train_image_outputs[:-1], display_size, image_directory, 'train_%08d' % (iterations + 1))
-            save_training_images_sf(test_image_outputs[-1], epoch=iterations + 1, dest_folder=image_directory, suffix_filename="io")
-            save_training_images_sf(train_image_outputs[-1], epoch=iterations + 1, dest_folder=image_directory, suffix_filename="io")
 
         if (iterations + 1) % config['image_display_iter'] == 0:
             with torch.no_grad():

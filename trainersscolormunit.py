@@ -3,7 +3,7 @@ Copyright (C) 2017 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
 from networksold import AdaINGen, MsImageDis, VAEGen
-from utils import save_training_images, vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
+from utils import save_training_images_sf, vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
 from VGGPytorch import VGGNet
 from torchvision.utils import save_image
@@ -92,6 +92,11 @@ class MUNIT_Trainer(nn.Module):
         # surface + texture
         output_photo_xab = self.extract_surface.process(x_a, x_ab, r=1)
         output_photo_xba = self.extract_surface.process(x_b, x_ba, r=1)
+
+        self.sample_xab = x_ab
+        self.sample_xa = x_a
+        self.sample_surxab= output_photo_xab
+
         # encode again
         c_b_recon, s_a_recon = self.gen_a.encode(x_ba)
         c_a_recon, s_b_recon = self.gen_b.encode(output_photo_xab)
@@ -160,13 +165,13 @@ class MUNIT_Trainer(nn.Module):
         return torch.mean((self.instancenorm(img_fea) - self.instancenorm(target_fea)) ** 2)
 
 
-    def sample(self, x_a, x_b):
+    def sample(self, x_a, x_b, iterations, dir):
         self.eval()
         s_a1 = Variable(self.s_a)
         s_b1 = Variable(self.s_b)
         s_a2 = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
         s_b2 = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
-        x_a_recon, x_b_recon, x_ba1, x_ba2, x_ab1, x_ab2, x_output1, x_output2 = [], [], [], [], [], [], [], [], []
+        x_a_recon, x_b_recon, x_ba1, x_ba2, x_ab1, x_ab2= [], [], [], [], [], []
         for i in range(x_a.size(0)):
             c_a, s_a_fake = self.gen_a.encode(x_a[i].unsqueeze(0))
             c_b, s_b_fake = self.gen_b.encode(x_b[i].unsqueeze(0))
@@ -188,18 +193,14 @@ class MUNIT_Trainer(nn.Module):
             #x_ba2.append(tmp2)
             #x_ab1.append(tmp3)
             #x_ab2.append(tmp4)
-        test_surface = GuidedFilter()
-        for i in range(x_ab1):
-            x_output1[i] = test_surface(x_ab1) * 0.5 + 0.5
-            x_output2[i] = test_surface(x_ab2) * 0.5 + 0.5
-        x_output = torch.cat(x_a, x_output1 + x_output2, axis=3)
-
+        x_output = torch.cat((self.sample_xa * 0.5 + 0.5, self.sample_xab * 0.5, 0.5 + self.sample_surxab * 0.5 + 0.5), axis=3)
         x_a_recon, x_b_recon = torch.cat(x_a_recon), torch.cat(x_b_recon)
         x_ba1, x_ba2 = torch.cat(x_ba1), torch.cat(x_ba2)
         x_ab1, x_ab2 = torch.cat(x_ab1), torch.cat(x_ab2)
-
+        save_training_images_sf(x_output, epoch=iterations + 1, dest_folder=dir,
+                                suffix_filename="io")
         self.train()
-        return x_a, x_a_recon, x_ab1, x_ab2, x_b, x_b_recon, x_ba1, x_ba2, x_output
+        return x_a, x_a_recon, x_ab1, x_ab2, x_b, x_b_recon, x_ba1, x_ba2
 
     def dis_update(self, x_a, x_b, hyperparameters):
         self.dis_opt.zero_grad()
