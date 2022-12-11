@@ -3,7 +3,7 @@ Copyright (C) 2017 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
 from networksold import AdaINGen, MsImageDis, VAEGen
-from utils import vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
+from utils import save_training_images, vgg_preprocess_color, weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
 from VGGPytorch import VGGNet
 from torchvision.utils import save_image
@@ -166,21 +166,40 @@ class MUNIT_Trainer(nn.Module):
         s_b1 = Variable(self.s_b)
         s_a2 = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
         s_b2 = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
-        x_a_recon, x_b_recon, x_ba1, x_ba2, x_ab1, x_ab2 = [], [], [], [], [], []
+        x_a_recon, x_b_recon, x_ba1, x_ba2, x_ab1, x_ab2, x_output1, x_output2 = [], [], [], [], [], [], [], [], []
         for i in range(x_a.size(0)):
             c_a, s_a_fake = self.gen_a.encode(x_a[i].unsqueeze(0))
             c_b, s_b_fake = self.gen_b.encode(x_b[i].unsqueeze(0))
             x_a_recon.append(self.gen_a.decode(c_a, s_a_fake))
             x_b_recon.append(self.gen_b.decode(c_b, s_b_fake))
-            x_ba1.append(self.extract_surface.process(x_b, self.gen_a.decode(c_b, s_a1[i].unsqueeze(0)), r=1))
-            x_ba2.append(self.extract_surface.process(x_b, self.gen_a.decode(c_b, s_a2[i].unsqueeze(0)), r=1))
-            x_ab1.append(self.extract_surface.process(x_a, self.gen_b.decode(c_a, s_b1[i].unsqueeze(0)), r=1))
-            x_ab2.append(self.extract_surface.process(x_a, self.gen_b.decode(c_a, s_b2[i].unsqueeze(0)), r=1))
+            #tmp1 = self.gen_a.decode(c_b, s_a1[i].unsqueeze(0))
+            #tmp1 = self.extract_surface.process(x_b, tmp1, r=1)
+            #tmp2 = self.gen_a.decode(c_b, s_a2[i].unsqueeze(0))
+            #tmp2 = self.extract_surface.process(x_b, tmp2, r=1)
+            #tmp3 = self.gen_b.decode(c_a, s_b1[i].unsqueeze(0))
+            #tmp3 = self.extract_surface.process(x_a, tmp3, r=1)
+            #tmp4 = self.gen_b.decode(c_a, s_b2[i].unsqueeze(0))
+            #tmp4 = self.extract_surface.process(x_a, tmp4, r=1)
+            x_ba1.append(self.gen_a.decode(c_b, s_a1[i].unsqueeze(0)))
+            x_ba2.append(self.gen_a.decode(c_b, s_a2[i].unsqueeze(0)))
+            x_ab1.append(self.gen_b.decode(c_a, s_b1[i].unsqueeze(0)))
+            x_ab2.append(self.gen_b.decode(c_a, s_b2[i].unsqueeze(0)))
+            #x_ba1.append(tmp1)
+            #x_ba2.append(tmp2)
+            #x_ab1.append(tmp3)
+            #x_ab2.append(tmp4)
+        test_surface = GuidedFilter()
+        for i in range(x_ab1):
+            x_output1[i] = test_surface(x_ab1) * 0.5 + 0.5
+            x_output2[i] = test_surface(x_ab2) * 0.5 + 0.5
+        x_output = torch.cat(x_a, x_output1 + x_output2, axis=3)
+
         x_a_recon, x_b_recon = torch.cat(x_a_recon), torch.cat(x_b_recon)
         x_ba1, x_ba2 = torch.cat(x_ba1), torch.cat(x_ba2)
         x_ab1, x_ab2 = torch.cat(x_ab1), torch.cat(x_ab2)
+
         self.train()
-        return x_a, x_a_recon, x_ab1, x_ab2, x_b, x_b_recon, x_ba1, x_ba2
+        return x_a, x_a_recon, x_ab1, x_ab2, x_b, x_b_recon, x_ba1, x_ba2, x_output
 
     def dis_update(self, x_a, x_b, hyperparameters):
         self.dis_opt.zero_grad()

@@ -287,6 +287,12 @@ def save_training_images(image, epoch, step, dest_folder, suffix_filename:str):
         os.makedirs(dest_folder)
     save_image(image, os.path.join(dest_folder, f"epoch_{epoch}_step_{step}_{suffix_filename}.png"))
 
+
+def save_training_images_sf(image, epoch, dest_folder, suffix_filename:str):
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+    save_image(image, os.path.join(dest_folder, f"epoch_{epoch}_{suffix_filename}.png"))
+
 def vgg_preprocess_color(batch):
     tensortype = type(batch.data)
     extract_structure = SuperPixel("cuda", mode='simple')
