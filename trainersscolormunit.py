@@ -126,7 +126,7 @@ class MUNIT_Trainer(nn.Module):
             self.loss_gen_vgg_a = self.L1_Loss(self.xba, self.x_b) * 255 / (c * h * w)
             self.xab, self.x_a = self.compute_vgg_L1loss(self.VGG19, output_photo_xab, x_a)
             _, c, h, w = self.x_a.shape
-            self.loss_gen_vgg_b = self.L1_Loss(self.output_photo_xab, self.x_a) * 255 / (c * h * w)
+            self.loss_gen_vgg_b = self.L1_Loss(self.xab, self.x_a) * 255 / (c * h * w)
         else:
             self.loss_gen_vgg_a = 0
             self.loss_gen_vgg_b = 0
@@ -172,10 +172,10 @@ class MUNIT_Trainer(nn.Module):
             c_b, s_b_fake = self.gen_b.encode(x_b[i].unsqueeze(0))
             x_a_recon.append(self.gen_a.decode(c_a, s_a_fake))
             x_b_recon.append(self.gen_b.decode(c_b, s_b_fake))
-            x_ba1.append(self.gen_a.decode(c_b, s_a1[i].unsqueeze(0)))
-            x_ba2.append(self.gen_a.decode(c_b, s_a2[i].unsqueeze(0)))
-            x_ab1.append(self.gen_b.decode(c_a, s_b1[i].unsqueeze(0)))
-            x_ab2.append(self.gen_b.decode(c_a, s_b2[i].unsqueeze(0)))
+            x_ba1.append(self.extract_surface.process(x_b, self.gen_a.decode(c_b, s_a1[i].unsqueeze(0)), r=1))
+            x_ba2.append(self.extract_surface.process(x_b, self.gen_a.decode(c_b, s_a2[i].unsqueeze(0)), r=1))
+            x_ab1.append(self.extract_surface.process(x_a, self.gen_b.decode(c_a, s_b1[i].unsqueeze(0)), r=1))
+            x_ab2.append(self.extract_surface.process(x_a, self.gen_b.decode(c_a, s_b2[i].unsqueeze(0)), r=1))
         x_a_recon, x_b_recon = torch.cat(x_a_recon), torch.cat(x_b_recon)
         x_ba1, x_ba2 = torch.cat(x_ba1), torch.cat(x_ba2)
         x_ab1, x_ab2 = torch.cat(x_ab1), torch.cat(x_ab2)
