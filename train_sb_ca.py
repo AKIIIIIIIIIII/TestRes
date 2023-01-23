@@ -102,7 +102,7 @@ while True:
 
         if (iterations + 1) % config['image_display_iter'] == 0:
             with torch.no_grad():
-                image_outputs = trainer.sample(train_display_images_a, train_display_images_b)
+                image_outputs = trainer.sample(train_display_images_a, train_display_images_b, iterations, image_directory)
             write_2images(image_outputs, display_size, image_directory, 'train_current')
 
         # Save network weights
